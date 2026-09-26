@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LearningResource",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "type",
+    "level",
+    "reason",
+    "url"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "type": {
+      "enum": [
+        "book",
+        "paper",
+        "course",
+        "article",
+        "documentation",
+        "repository",
+        "lecture"
+      ]
+    },
+    "level": {
+      "type": "string"
+    },
+    "domain": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "official": {
+      "type": "boolean"
+    },
+    "lastVerified": {
+      "type": "string"
+    }
+  }
+}
