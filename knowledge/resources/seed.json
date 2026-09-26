@@ -1,0 +1,32 @@
+[
+  {
+    "id": "attention",
+    "title": "Attention Is All You Need",
+    "type": "paper",
+    "level": "intermediate",
+    "domain": "Transformers",
+    "url": "https://arxiv.org/abs/1706.03762",
+    "official": true,
+    "reason": "Primary source for Transformer architecture and scaled dot-product attention."
+  },
+  {
+    "id": "hf-llm",
+    "title": "Hugging Face LLM Course",
+    "type": "course",
+    "level": "beginner-to-advanced",
+    "domain": "LLMs",
+    "url": "https://huggingface.co/learn/llm-course/chapter0/1",
+    "official": true,
+    "reason": "Structured path through Transformers, datasets, fine-tuning, deployment and advanced LLM topics."
+  },
+  {
+    "id": "fsdl",
+    "title": "Full Stack Deep Learning",
+    "type": "course",
+    "level": "advanced",
+    "domain": "Production ML",
+    "url": "https://fullstackdeeplearning.com/course/",
+    "official": true,
+    "reason": "Connects modeling with experimentation, deployment and production concerns."
+  }
+]
