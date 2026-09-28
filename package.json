@@ -5,15 +5,15 @@
   "type": "module",
   "scripts": {
     "prompts": "node scripts/build-prompts.mjs",
-    "dev": "npm run prompts && npm run build && concurrently -k -n api,web \"wrangler pages dev dist --port 8788 --ip 0.0.0.0 --live-reload\" \"vite\"",
-    "dev:api": "npm run prompts && wrangler pages dev dist --port 8788",
+    "dev": "npm run prompts && vite build && concurrently -k -n api,web \"wrangler dev --port 8788 --ip 0.0.0.0\" \"vite\"",
+    "dev:api": "npm run prompts && vite build && wrangler dev --port 8788",
     "build": "npm run prompts && tsc -p tsconfig.json && tsc -p server/tsconfig.json && vite build",
-    "preview": "npm run build && wrangler pages dev dist --port 8788 --ip 0.0.0.0",
+    "preview": "npm run build && wrangler dev --port 8788 --ip 0.0.0.0",
     "db:migrate": "wrangler d1 migrations apply learning-os --local",
     "db:migrate:remote": "wrangler d1 migrations apply learning-os --remote",
     "db:import": "node scripts/import-knowledge.mjs",
     "validate": "node scripts/validate-knowledge.mjs",
-    "deploy": "npm run build && wrangler pages deploy dist"
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "hono": "^4.13.10",

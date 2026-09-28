@@ -9,6 +9,10 @@ import { videos } from './routes/videos'
 
 export const app = new Hono<AppEnv>().basePath('/api')
 
+app.use('*', async (c, next) => {
+  await next()
+  c.header('Cache-Control', 'no-store')
+})
 app.use('*', requireAccess)
 app.route('/', missions)
 app.route('/', library)

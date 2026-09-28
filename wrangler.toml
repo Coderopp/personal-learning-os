@@ -1,7 +1,13 @@
+# Cloudflare Worker with static assets: the React app is served from ./dist, /api/* runs server/worker.ts.
 name = "learning-os"
+main = "server/worker.ts"
 compatibility_date = "2026-05-01"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = "./dist"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
 
 [[d1_databases]]
 binding = "DB"

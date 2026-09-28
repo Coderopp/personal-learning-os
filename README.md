@@ -18,12 +18,11 @@ The repo is the **memory**, Groq is the **execution layer**, the benchmark is th
 
 ## Stack
 
-React + TypeScript + Vite · Cloudflare Pages + Functions (Hono) · D1 (SQLite) · Cloudflare Access · Groq (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`) with strict JSON-schema output.
+React + TypeScript + Vite · Cloudflare Worker with static assets (Hono API) · D1 (SQLite) · Cloudflare Access · Groq (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`) with strict JSON-schema output.
 
 ```
 src/          app (pages/, components/, lib/)
-server/       API: routes/, llm.ts (Groq gateway), search.ts, youtube.ts, learning.ts (bottleneck, errors, SRS)
-functions/    Pages Functions entry → server/app.ts
+server/       API (worker.ts entry): routes/, llm.ts (Groq gateway), search.ts, youtube.ts, learning.ts (bottleneck, errors, SRS)
 migrations/   D1 schema
 knowledge/    canonical memory: missions/, resources/, questions/
 prompts/      versioned AI behaviour (bundled into the server at build)
@@ -33,7 +32,7 @@ docs/         PRODUCT.md, DESIGN.md, SETUP.md
 
 ## Run
 
-See **[docs/SETUP.md](docs/SETUP.md)** for deploying to `*.pages.dev` and using it from PC + tablet.
+See **[docs/SETUP.md](docs/SETUP.md)** for deploying to `*.workers.dev` and using it from PC + tablet.
 
 ```bash
 cp .dev.vars.example .dev.vars   # add GROQ_API_KEY

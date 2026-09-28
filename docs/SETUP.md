@@ -1,6 +1,6 @@
 # Setup: PC + tablet, from anywhere (~20 minutes, $0)
 
-Everything runs on Cloudflare's free tier: **Pages** serves the app, **Pages Functions** run the Groq gateway, **D1** stores your learner state, and **Access** protects it with an email login. GitHub stays the source of the code and of curated knowledge.
+Everything runs on Cloudflare's free tier: one **Worker** serves the app and runs the Groq gateway, **D1** stores your learner state, and **Access** protects it with an email login. GitHub stays the source of the code and of curated knowledge.
 
 ## 1. Keys you need
 
@@ -11,55 +11,54 @@ Everything runs on Cloudflare's free tier: **Pages** serves the app, **Pages Fun
 | `YOUTUBE_API_KEY` | recommended | Google Cloud console → enable **YouTube Data API v3** → Credentials → API key |
 | `GITHUB_TOKEN` | optional | GitHub → Settings → Developer settings → Fine-grained token → only `Coderopp/personal-learning-os` → Contents: read & write. Approved resources and activated missions get committed to `knowledge/` |
 
-## 2. Database
+## 2. Database (done 2026-09-28)
 
 ```bash
 npx wrangler login
-npx wrangler d1 create learning-os        # copy the database_id it prints into wrangler.toml
+npx wrangler d1 create learning-os        # the database_id is already in wrangler.toml
 npm run db:migrate:remote                 # create tables
 npm run db:import -- --remote             # load knowledge/ (Mission 001 etc.)
 ```
 
-## 3. Pages project
+## 3. Worker (connected to GitHub)
 
-Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git** → pick `Coderopp/personal-learning-os`.
+The app is one **Cloudflare Worker with static assets**: the React build in `dist/` is served as static files and only `/api/*` runs `server/worker.ts`.
 
-- Production branch: `main`
+Cloudflare dashboard → **Workers & Pages → Create → Workers → Import a repository** → `Coderopp/personal-learning-os`:
+
+- Project name: **`learning-os`** (must match `name` in `wrangler.toml`)
 - Build command: `npm run build`
-- Build output directory: `dist`
-- Environment variable: `NODE_VERSION = 22`
+- Deploy command: `npx wrangler deploy`
+- Production branch: `main`
+- Build variable: `NODE_VERSION = 22`
 
-Bindings (D1 and the plain vars) come from `wrangler.toml`. Add the secrets:
+The D1 binding and plain variables come from `wrangler.toml`. Add the secrets. Each command prompts for the value, so it never lands in a file:
 
 ```bash
-npx wrangler pages secret put GROQ_API_KEY    --project-name learning-os
-npx wrangler pages secret put TAVILY_API_KEY  --project-name learning-os
-npx wrangler pages secret put YOUTUBE_API_KEY --project-name learning-os
-npx wrangler pages secret put GITHUB_TOKEN    --project-name learning-os
+npx wrangler secret put GROQ_API_KEY
+npx wrangler secret put TAVILY_API_KEY
+npx wrangler secret put YOUTUBE_API_KEY
+npx wrangler secret put GITHUB_TOKEN
 ```
+
+(or in the dashboard: Worker → Settings → Variables and Secrets → type **Secret**). Never put keys in `wrangler.toml` / `wrangler.jsonc`.
 
 ## 4. Lock it to you (Cloudflare Access)
 
-Zero Trust dashboard → **Access → Applications → Add → Self-hosted**:
+Worker → **Settings → Domains & Routes** → on the `workers.dev` row (and **Preview URLs**) choose **Enable Cloudflare Access**. Then in Zero Trust → Access → Applications, edit that application's policy to *Allow* → *Emails* → your email, login method One-time PIN.
 
-- Domains: `learning-os.pages.dev` **and** `*.learning-os.pages.dev` (preview deploys)
-- Policy: *Allow* → *Emails* → your email
-- Login method: One-time PIN
-
-Copy the application's **Audience (AUD) tag** and your team domain (`<team>.cloudflareaccess.com`), then:
+Copy the application's **Audience (AUD) tag** and your team domain (`<team>.cloudflareaccess.com`):
 
 ```bash
-npx wrangler pages secret put ACCESS_AUD         --project-name learning-os
-npx wrangler pages secret put ACCESS_TEAM_DOMAIN --project-name learning-os
+npx wrangler secret put ACCESS_AUD
+npx wrangler secret put ACCESS_TEAM_DOMAIN
 ```
 
-The API verifies the Access token itself and **refuses all requests** if these two are missing. Never set `DEV_NO_AUTH` in production.
-
-Push to `main` (or retry the deploy) so the secrets take effect.
+The API verifies the Access token itself and **refuses all requests** (503) until these two are set. Never set `DEV_NO_AUTH` in production.
 
 ## 5. Devices
 
-- **PC:** open `https://learning-os.pages.dev`, enter the emailed code.
+- **PC:** open `https://learning-os.<your-subdomain>.workers.dev`, enter the emailed code.
 - **Tablet:** same URL, sign in, then *Share → Add to Home Screen* (iPad) or *⋮ → Install app* (Android). It opens full-screen like an app. Sessions, notes and video position sync through D1; a session started on one device resumes on the other.
 
 ## Local development
@@ -68,7 +67,7 @@ Push to `main` (or retry the deploy) so the secrets take effect.
 cp .dev.vars.example .dev.vars    # fill GROQ_API_KEY; DEV_NO_AUTH=1 is for local only
 npm install
 npm run db:migrate && npm run db:import
-npm run dev                        # http://localhost:5173 (also reachable from the tablet at http://<pc-ip>:5173)
+npm run dev                        # http://localhost:5173 (API on :8788 via wrangler dev) (also reachable from the tablet at http://<pc-ip>:5173)
 ```
 
 ## Free-tier notes

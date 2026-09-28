@@ -323,7 +323,7 @@ Changes from the plan above, made during the build:
 | Separate `candidates` table | One `resources` table with `status` (candidate/accepted/deferred/rejected/deprecated) | Same review gate, one query path, dedupe by `(mission, url)` |
 | Separate review-grader prompt | Reviews are graded by the evaluator (fast tier) via `/attempts` | One grading path records errors and moves the review ladder consistently |
 | Tavily + YouTube only | Plus **arXiv and GitHub** search (keyless) | The agent returns real sources even before any search key is set |
-| `functions/_lib` | Library in `server/`, one catch-all `functions/api/[[route]].ts` (Hono) | Pages treats files under `functions/` as routes |
+| Cloudflare Pages + Functions on `*.pages.dev` | **Worker with static assets** on `*.workers.dev`; `server/worker.ts` handles `/api/*`, Cloudflare serves `dist/` | The dashboard's Git import creates Workers (Cloudflare's recommended platform); same free tier, D1 and Access |
 | Transcript fetch "to be tested" | Works from a residential IP (InnerTube captions, 8 s timeout); **paste fallback** when blocked | Cloudflare IPs may be blocked; verify after first deploy |
 | Seeded errors in `knowledge/errors/seed.json` | **Removed** | They were illustrative, not the learner's real mistakes; errors now only come from graded attempts |
 | Seed questions | Imported as due retrieval items | Mission 001 has recall material on day one |
