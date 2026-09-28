@@ -20,7 +20,10 @@ function MissionList() {
     <div className="page">
       <header className="page-head">
         <div><span className="kicker">Missions</span><h1>One primary, many explorations</h1></div>
-        <Link className="button primary" to="/missions/new">+ New mission</Link>
+        <div className="row-actions">
+          <Link className="button secondary" to="/connections">Connections</Link>
+          <Link className="button primary" to="/missions/new">+ New mission</Link>
+        </div>
       </header>
       <ErrorBanner error={error} />
       {loading && <Spinner />}
@@ -258,6 +261,7 @@ function CompetencyPanel({ c, all, onChange, onClose, bench, active }: {
         )}
       </div>
       <ErrorBanner error={benchAction.error} />
+      <AlsoIn id={c.id} onTestOut={active ? startBenchmark : undefined} />
       <div className="tabs">
         {(['primer', 'resources', 'videos', 'ask', 'edit'] as PanelTab[]).map(t =>
           <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t[0].toUpperCase() + t.slice(1)}</button>)}
@@ -296,6 +300,34 @@ function Primer({ id }: { id: string }) {
           <button className="primary" disabled={action.busy} onClick={generate}>{action.busy ? 'Writing primer…' : 'Write primer'}</button>
         </Empty>
       )}
+    </div>
+  )
+}
+
+interface Links {
+  links: { id: string; name: string; mission_id: string; mission_title: string; benchmark_score: number | null; shared: string[] }[]
+  test_out: { from: { name: string; mission_title: string; benchmark_score: number }; shared: string[] } | null
+}
+
+/** Cross-mission links for one competency, and a test-out suggestion when you've already proven it elsewhere. */
+function AlsoIn({ id, onTestOut }: { id: string; onTestOut?: () => void }) {
+  const { data } = useApi<Links>(`/links/${enc(id)}`)
+  if (!data?.links.length) return null
+  return (
+    <div className="also-in">
+      {data.test_out && (
+        <div className="banner info bench-due">
+          <span>You scored <b>{Math.round(data.test_out.from.benchmark_score)}</b> on <b>{data.test_out.from.name}</b> in {data.test_out.from.mission_title}, sharing {data.test_out.shared.join(', ')}. Take a benchmark here to test out.</span>
+          {onTestOut && <button className="secondary small" onClick={onTestOut}>Test out</button>}
+        </div>
+      )}
+      <span className="muted small-text">Also in:</span>
+      {data.links.slice(0, 4).map(l => (
+        <Link key={l.id} className="also-chip" to={`/missions/${l.mission_id}?c=${encodeURIComponent(l.id)}`} title={`Shares ${l.shared.join(', ')}`}>
+          <b>{l.mission_title}</b> › {l.name} <span className="muted">· {l.shared.slice(0, 2).join(', ')}</span>
+        </Link>
+      ))}
+      {data.links.length > 4 && <Link to="/connections" className="link small-text">+{data.links.length - 4} more</Link>}
     </div>
   )
 }

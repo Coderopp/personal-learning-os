@@ -216,15 +216,25 @@ sessions.post('/questions/generate', async c => {
   const comp = await first<{ name: string; description: string; prerequisites: string }>(c.env,
     'SELECT name, description, prerequisites FROM competencies WHERE id = ?', b.competency_id)
   if (!comp) throw new UserFacingError('Competency not found', 404)
-  const [errors, gaps] = await Promise.all([
+  const [errors, gaps, linked] = await Promise.all([
     all(c.env, `SELECT concept, root_cause FROM errors WHERE competency_id = ? AND status != 'resolved' LIMIT 5`, b.competency_id),
     all(c.env, `SELECT gap FROM attempts WHERE competency_id = ? AND gap IS NOT NULL ORDER BY created_at DESC LIMIT 5`, b.competency_id),
+    // The same concepts in the learner's other missions: material for transfer questions.
+    all<{ mission: string; competency: string; concept: string }>(c.env,
+      `SELECT m.title AS mission, k.name AS competency, cn.name AS concept
+       FROM competency_concepts x JOIN competency_concepts y ON y.concept_id = x.concept_id
+       JOIN competencies k ON k.id = y.competency_id JOIN missions m ON m.id = k.mission_id JOIN concepts cn ON cn.id = x.concept_id
+       WHERE x.competency_id = ? AND k.mission_id != (SELECT mission_id FROM competencies WHERE id = ?) AND m.status != 'archived' LIMIT 6`,
+      b.competency_id, b.competency_id),
   ])
   const difficulty = Math.max(1, Math.min(5, Math.round(b.difficulty || 3)))
   const q = await llm<{ type: string; difficulty: number; prompt: string; expected: string; misconceptions: string[] }>(c.env, {
     prompt: 'question-generator',
     schema: SCHEMAS.question,
-    input: { competency: { name: comp.name, description: comp.description }, difficulty, known_errors: errors, recent_gaps: gaps.map(g => g.gap), already_asked: b.asked ?? [] },
+    input: {
+      competency: { name: comp.name, description: comp.description }, difficulty, known_errors: errors, recent_gaps: gaps.map(g => g.gap),
+      already_asked: b.asked ?? [], linked_competencies: linked,
+    },
   })
   const id = newId('q')
   await run(c.env,

@@ -5,6 +5,7 @@ import { llm, SCHEMAS } from '../llm'
 import { gather, searchProviders, type Hit } from '../search'
 import { commitJson } from '../github'
 import { competenciesOf } from '../learning'
+import { linkMission } from './graph'
 
 export const missions = new Hono<AppEnv>()
 
@@ -147,6 +148,11 @@ missions.patch('/missions/:id', async c => {
   if (fields.length) {
     await run(c.env, `UPDATE missions SET ${fields.map(f => `${f} = ?`).join(', ')}, updated_at = ? WHERE id = ?`,
       ...fields.map(f => body[f]), nowIso(), id)
+  }
+
+  // Activation tags the mission's concepts so it links to your other missions (background; no wait for the user).
+  if (body.status === 'active' && m.status !== 'active') {
+    c.executionCtx.waitUntil(linkMission(c.env, id).catch(e => console.error('link failed', e)))
   }
 
   let committed: string | null = null

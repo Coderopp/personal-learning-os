@@ -428,3 +428,20 @@ rect.hm-cell.focused { stroke: var(--text); stroke-width: 1.5; }
 .activity-row { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; align-items: stretch; }
 .streak-tiles { display: grid; gap: 12px; }
 @media (max-width: 900px) { .activity-row { grid-template-columns: 1fr; } .streak-tiles { grid-template-columns: 1fr 1fr; } }
+
+/* ---------- phase 3: connections ---------- */
+.also-in { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: -4px 0 14px; }
+.also-in .banner { flex-basis: 100%; }
+.also-chip { display: inline-flex; gap: 4px; align-items: center; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-2); font-size: 0.82rem; text-decoration: none; max-width: 100%; }
+.also-chip:hover { border-color: var(--text-3); }
+.graph-scroll { overflow-x: auto; }
+svg.graph { width: 100%; height: auto; display: block; }
+.graph-col { font-weight: 700; fill: var(--text); }
+.graph-edge { fill: none; stroke: var(--viz-muted); opacity: 0.45; }
+.graph-edge.on { stroke: var(--viz-s1); opacity: 1; }
+.graph-edge.dim { opacity: 0.12; }
+.graph-node { cursor: pointer; outline: none; }
+.graph-node rect { fill: var(--surface-2); stroke: var(--border-strong); stroke-width: 1; }
+.graph-node:hover rect, .graph-node:focus-visible rect { stroke: var(--text-3); }
+.graph-node.touched rect { stroke: var(--viz-s1); }
+.graph-node.selected rect { stroke: var(--viz-s1); stroke-width: 2; fill: var(--surface-3); }
