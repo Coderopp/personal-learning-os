@@ -164,7 +164,7 @@ export const SCHEMAS = {
     focus_reason: str,
     retrieve: arr(qa),
     learn_resource_ids: arr(str),
-    build_task: obj({ title: str, instructions: str, definition_of_done: str }),
+    build_task: obj({ title: str, instructions: str, definition_of_done: str, runs_in_browser: bool }),
     reflect_prompts: arr(str),
   }),
   question: obj({
@@ -179,6 +179,7 @@ export const SCHEMAS = {
     verdict: oneOf('correct', 'partial', 'incorrect'),
     feedback: str,
     gap: str,
+    verified: bool,
     error: obj({
       present: bool,
       category: oneOf(...ERROR_CATEGORIES),

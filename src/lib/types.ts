@@ -106,6 +106,7 @@ export interface Grade {
   error: { id: string; category: string; concept: string; recurring: boolean } | null
   review: { rung: number; next_in_days: number } | null
   answer?: string
+  verified?: boolean
 }
 
 export interface Session {

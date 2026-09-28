@@ -157,6 +157,7 @@ sessions.post('/attempts', async c => {
   const b = await c.req.json<{
     session_id?: string; mission_id: string; competency_id?: string | null; stage: string
     prompt: string; expected?: string; answer: string; question_id?: string; review_id?: string; error_id?: string
+    artifact?: { code: string; stdout: string; stderr: string; runtime_ms: number; timed_out?: boolean }
   }>()
   if (!b.answer?.trim()) throw new UserFacingError('Write an attempt first. Retrieval before reading.')
 
@@ -164,13 +165,19 @@ sessions.post('/attempts', async c => {
     `SELECT id, concept, root_cause FROM errors WHERE mission_id = ? AND status != 'resolved' AND (? IS NULL OR competency_id = ?) LIMIT 10`,
     b.mission_id, b.competency_id ?? null, b.competency_id ?? null)
   const g = await llm<{
-    score: number; verdict: 'correct' | 'partial' | 'incorrect'; feedback: string; gap: string
+    score: number; verdict: 'correct' | 'partial' | 'incorrect'; feedback: string; gap: string; verified: boolean
     error: { present: boolean; category: string; concept: string; observed: string; root_cause: string; next_action: string; matches_error_id: string }
   }>(c.env, {
     prompt: 'evaluator',
     schema: SCHEMAS.evaluate,
     tier: b.stage === 'review' ? 'fast' : 'large',
-    input: { stage: b.stage, question: b.prompt, expected: b.expected ?? '', attempt: b.answer, known_errors: knownErrors },
+    input: {
+      stage: b.stage, question: b.prompt, expected: b.expected ?? '', attempt: b.answer, known_errors: knownErrors,
+      // Real captured output from the in-browser runner (trimmed to fit the model budget).
+      ...(b.artifact && { execution: {
+        stdout: b.artifact.stdout.slice(-4000), stderr: b.artifact.stderr.slice(-2000), runtime_ms: b.artifact.runtime_ms, timed_out: Boolean(b.artifact.timed_out),
+      } }),
+    },
   })
   const score = Math.max(0, Math.min(100, g.score))
 
@@ -190,13 +197,14 @@ sessions.post('/attempts', async c => {
 
   const id = newId('att')
   await run(c.env,
-    `INSERT INTO attempts (id, session_id, mission_id, competency_id, question_id, review_id, stage, prompt, answer, score, verdict, feedback, gap, error_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO attempts (id, session_id, mission_id, competency_id, question_id, review_id, stage, prompt, answer, score, verdict, feedback, gap, error_id, artifact)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, b.session_id ?? null, b.mission_id, b.competency_id ?? null, b.question_id ?? null, b.review_id ?? null, b.stage,
-    b.prompt, b.answer, score, g.verdict, g.feedback, g.gap || null, errorId)
+    b.prompt, b.answer, score, g.verdict, g.feedback, g.gap || null, errorId,
+    b.artifact ? JSON.stringify({ ...b.artifact, verified: Boolean(g.verified) }) : null)
 
   return c.json({
-    id, score, verdict: g.verdict, feedback: g.feedback, gap: g.gap,
+    id, score, verdict: g.verdict, feedback: g.feedback, gap: g.gap, verified: Boolean(b.artifact && g.verified),
     error: errorId ? { id: errorId, category: g.error.category, concept: g.error.concept, recurring: Boolean(g.error.matches_error_id) } : null,
     review,
   })

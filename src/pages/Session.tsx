@@ -5,6 +5,7 @@ import type { Grade, Item, Moment, Resource, Session } from '../lib/types'
 import { MomentList } from './Videos'
 import { Card, Chip, Empty, ErrorBanner, Spinner, verdictTone } from '../components/ui'
 import { AnswerBox } from '../components/AnswerBox'
+import { CodeRunner } from '../components/CodeRunner'
 import { AskTutor } from '../components/AskTutor'
 import { Md } from '../components/Md'
 
@@ -155,17 +156,28 @@ function MasteryStage({ session, stage, results, setResult, patch, go, reload }:
     case 2:
       return <PracticeStage session={session} focus={focus} results={results} setResult={setResult} patch={patch} onNext={() => go(3)} />
     case 3: {
-      const task = s.build_task as { title: string; instructions: string; definition_of_done: string }
+      const task = s.build_task as { title: string; instructions: string; definition_of_done: string; runs_in_browser?: boolean }
       const item: Item = {
         id: 'build', type: 'build', competency_id: focus.id,
         prompt: `**${task.title}**\n\n${task.instructions}\n\n**Done when:** ${task.definition_of_done}`,
         expected: task.definition_of_done,
       }
+      // Browser execution by default; the coach marks GPU/framework/document tasks as local-only.
+      const local = (s.build_mode as string | undefined) === 'local' || (task.runs_in_browser === false && s.build_mode !== 'browser')
       return (
         <>
-          <Card title="Build: make it executable" subtitle="Run it on your machine, then paste the code and its output (or a repo link + results)." />
-          <AnswerBox item={item} missionId={session.mission_id} sessionId={session.id} stage="build" result={results.build}
-            onGraded={g => setResult('build', g)} placeholder={'```python\n# your code\n```\n\nOutput / measurements:\n'} />
+          <Card title="Build: make it executable"
+            subtitle={local ? 'Run it on your machine, then paste the code and its output (or a repo link + results).' : 'Write and run Python right here. The real output is what gets graded.'}
+            actions={!results.build && (
+              <button className="ghost small" onClick={() => patch({ build_mode: local ? 'browser' : 'local' })}>
+                {local ? 'Run in browser instead' : "I'll run it locally"}
+              </button>
+            )} />
+          {local
+            ? <AnswerBox item={item} missionId={session.mission_id} sessionId={session.id} stage="build" result={results.build}
+                onGraded={g => setResult('build', g)} placeholder={'```python\n# your code\n```\n\nOutput / measurements:\n'} />
+            : <CodeRunner item={item} missionId={session.mission_id} sessionId={session.id} result={results.build}
+                onGraded={g => setResult('build', g)} />}
           <Next onClick={() => { reload(); go(4) }} label="Diagnose" note={results.build ? undefined : 'You can skip the build if you are out of time'} />
         </>
       )

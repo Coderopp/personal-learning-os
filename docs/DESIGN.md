@@ -451,3 +451,101 @@ Result:  concept 80 · implementation 62 · reasoning 75 · transfer 58  →  69
 - Restore is an upsert by primary key, so columns the snapshot omits (raw transcripts) survive a restore over an existing database.
 - Fixed a Phase 1 bug: when the curator rejected every result, an empty D1 batch crashed "Find more".
 - First-load bundle 234 kB → 88 kB gzip (lazy routes, Markdown/KaTeX loaded on first use).
+
+---
+
+## 12. Phase 3 plan (approved 2026-09-28: all four; reminders evening-only; test-out suggestions on)
+
+Scope chosen: **run code in Build**, **Analytics**, **review reminders**, **cross-mission links**. Build order is 1 → 4, and each part ships as its own PR.
+
+### 1. Run code in the Build stage
+
+Today a Build task is graded on whatever you paste, so output can't be verified. With this, Python runs **in the browser** via Pyodide (CPython compiled to WebAssembly): free, no server and no sandbox to secure, and it works on the tablet.
+
+```text
+BUILD · Benchmark KV-cache on/off at 128/512/2048 tokens          Done when: table of latencies
+┌ main.py ───────────────────────────────────────────────┐  ┌ Output ──────────────── 0.8 s ┐
+│ import numpy as np, time                               │  │ seq   no-cache  cache         │
+│ def attention(q, k, v): ...                            │  │ 128   0.004     0.001         │
+│                                                        │  │ 512   0.061     0.004         │
+└────────────────────────────────────────────────────────┘  └───────────────────────────────┘
+ [▶ Run]  [Submit code + output]         numpy · pandas · scipy available · 20 s limit
+```
+
+- **Engine:** Pyodide lazy-loaded from jsDelivr into a **Web Worker** on first Run (~8 MB, then cached). The worker is terminated after 20 s, so an infinite loop can't freeze the page.
+- **Available packages:** numpy, pandas, scipy, matplotlib (as text output), plus pure-Python packages via `micropip`. **Not** PyTorch or other GPU libraries.
+  - Pushback: many LLM-engineering build tasks would naturally use torch. The session coach will be told to set tasks that run in NumPy (attention from scratch, KV-cache simulation, tokenizers, metrics, retrieval scoring). For tasks that truly need torch or a GPU, the stage keeps today's "run locally and paste output" path.
+- **Grading:** the evaluator receives code, **actual stdout/stderr and runtime**, and the definition of done. It marks the attempt `verified` only when the captured output meets it.
+- **Editor:** a monospace textarea with Tab-to-indent and ⌘/Ctrl+Enter to run. No heavy editor library, to keep the tablet load small.
+
+**Writes:** `attempts.artifact` (JSON: code, stdout, stderr, runtime_ms, verified).
+
+### 2. Analytics page
+
+As planned in §11-D. It gets real signal now that benchmarks exist. Built with the dataviz guidance, hand-rolled SVG with no chart library, readable in light and dark.
+
+```text
+ANALYTICS · Production LLM Engineering                       [ mission ▾ ] [ 8 weeks ▾ ]
+┌ Capability ─────────────────────────────┐ ┌ Benchmark vs practice, per competency ──┐
+│ 38 ┤              ●                      │ │ Transformers   ████████░░  38 | ░ 70     │
+│  5 ┼──●──────────────── coverage 1/8     │ │ Inference      —  not benchmarked | 55   │
+└─────────────────────────────────────────┘ └─────────────────────────────────────────┘
+ Recall-7 81% (n=42)   Recall-30 —(12/20)   Transfer 30   Error recurrence 22%   Gain/h —(1/2 runs)
+┌ Focused hours / week ───────────────────┐ ┌ Reviews due, next 14 days ──────────────┐
+└─────────────────────────────────────────┘ └─────────────────────────────────────────┘
+ Projected time-to-excellence: needs 2 benchmarks · Recovery latency: 1 day (last gap)
+```
+
+Every panel shows "not enough data (n/need)" until it can be computed honestly. The formulas are the ones in §4.9.
+
+**Learning activity heatmap + streak** (requested 2026-09-28): a GitHub-style calendar of the last 52 weeks, one square per day, shaded by focused minutes. It shows on Analytics, and a compact 16-week version goes on the Today screen, sized for the tablet.
+
+```text
+Sep  Oct  Nov  Dec  Jan …                              🔥 12-day streak · best 21 · 4 rest days left this month
+Mon ▢▢▣▣▢▢▣■■▣▢▢▣■■■▣▢▣■■                                less ▢ ▣ ■ ■ more
+Wed ▢▣▣■▢▢▣■■■▢▣■■■■▣▢▣■■
+Fri ▢▢▣▣▢▢▢▣■▣▢▢▣■■▣▢▢▢▣■
+Tap a day → "Tue 24 Sep · 52 focused min · 1 session · 9 reviews · 1 benchmark"
+```
+
+- **A learning day** means ≥ 10 focused minutes, *or* a completed review session, *or* a submitted benchmark. Opening the app doesn't count, so the streak rewards learning, not visits.
+- **The streak forgives one missed day per week.** At 5–15 h/week, a strict daily streak would break constantly and push you toward token 2-minute sessions. A second missed day in the same week ends the streak. Current and best streaks are both shown.
+- **Days are counted in IST (Asia/Kolkata)**, not UTC, so late-night study counts for the right day.
+
+**Reads only:** `benchmark_runs`, `competencies`, `review_log`, `reviews`, `errors`, `sessions`, `attempts`. New endpoint: `GET /api/analytics?mission=&weeks=`.
+
+### 3. Review reminders (push notifications)
+
+- **Web Push** to every device you enable it on. Android, desktop Chrome/Edge and Firefox work. **iPad/iPhone work only when the app is installed to the home screen** (iOS 16.4+). That's an Apple restriction.
+- A **service worker** (needed for push) also caches the app shell, so the app opens instantly and shows cached screens offline. Answers still need a connection.
+- **One quiet slot a day, 20:00 IST (off by default per device):** a nudge only if you haven't studied today *and* reviews are due (or a benchmark is ready), e.g. "6 reviews due (~9 min) · Benchmark ready: Transformers". Tapping it opens the review session directly.
+- **Settings (System page):** toggle per device and send a test notification.
+- **Sending:** VAPID + encrypted Web Push implemented with WebCrypto inside the Worker (no paid service). A cron trigger is added at 14:30 UTC (20:00 IST) next to the backup's 20:30 UTC. The VAPID key pair is generated once and stored as a secret.
+
+**Writes:** `push_subscriptions` (endpoint, keys, device label, slots, created, last_sent); `meta.vapid_public_key`.
+
+### 4. Cross-mission links (knowledge graph)
+
+Its trigger from §8 has fired: **Drone** (*LLM prompt design*, *integrate LLM with MAVSDK*) and **Production LLM Engineering** share concepts (structured output, prompt design, evaluation, latency).
+
+- **Concept tags:** on activation (and via "Relink"), the fast model tags each competency with 3–8 normalized concepts, e.g. `structured-output`, `kv-cache`, `evaluation-metrics`. A second call maps a new mission's concepts onto the existing concept list, so synonyms merge.
+- **Where it shows up:**
+  - **Competency panel:** "Also in *Drone › Integrate LLM with MAVSDK*, sharing structured output and prompt design."
+  - **Transfer suggestions:** if a concept is benchmarked ≥ 70 in one mission, the linked competency elsewhere says "You've shown this in LLM Engineering; take a benchmark here to test out." **Scores never transfer automatically**, because capability stays demonstrated per mission.
+  - **Graph view** (`/graph`): missions as columns, competencies as nodes, shared concepts as links. Tap a link to see what's shared.
+- **Retrieval bonus:** the question generator can draw a transfer question from a linked competency in another mission. Transfer is the capability we care most about.
+
+**Writes:** `concepts`, `competency_concepts` (FTS-free, plain tables).
+
+### Deferred (triggers unchanged)
+
+Embeddings (when keyword search misses), adaptive spaced-review scheduling (> 500 active items), full offline answer queue (studying offline).
+
+### Files
+
+| Part | Files |
+|---|---|
+| 1 | `src/lib/pyodide.worker.ts`, `src/components/CodeRunner.tsx`; `Session.tsx` Build stage; `prompts/session-coach.md` (NumPy-runnable tasks), `prompts/evaluator.md` (verified output); migration `attempts.artifact` |
+| 2 | `server/routes/analytics.ts` (incl. daily activity + streak); `src/pages/Analytics.tsx`, `src/components/charts/*` (incl. `Heatmap.tsx`); compact heatmap on Dashboard; nav entry |
+| 3 | `public/sw.js`, `src/lib/push.ts`, `server/push.ts` (VAPID + aes128gcm), `server/routes/push.ts`, `scheduled` handler dispatch by cron; `wrangler.toml` crons; Settings UI; migration `push_subscriptions` |
+| 4 | `prompts/concept-tagger.md`, `server/routes/graph.ts`, `src/pages/Graph.tsx`; competency panel "Also in"; migration `concepts`, `competency_concepts` |

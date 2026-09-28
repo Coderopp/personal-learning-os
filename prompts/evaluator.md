@@ -12,3 +12,8 @@ Grade the learner's attempt against the question and the expected reasoning.
   - `matches_error_id`: if this is the same underlying mistake as one of the provided known errors, its id; else "".
 
 For build submissions (code + output), grade whether the definition of done is met and whether the output supports the claimed conclusions.
+
+When `execution` is provided, the learner's code was actually run in a sandbox and `execution.stdout` / `execution.stderr` are the real captured output. Grade the build against that evidence:
+- `verified` = true only if the code ran without errors AND the captured output demonstrates the definition of done. Claims in prose that the output does not show do not count.
+- If the code errored or timed out, point at the exact failing line or cause from `stderr`.
+When no `execution` is provided, `verified` must be false.
