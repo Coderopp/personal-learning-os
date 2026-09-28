@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 
 # Nightly learner-state backup at 02:00 IST.
 [triggers]
-crons = ["30 20 * * *"]
+crons = ["30 20 * * *", "30 14 * * *"]  # 02:00 IST backup, 20:00 IST evening nudge
 
 [assets]
 directory = "./dist"
@@ -23,5 +23,8 @@ migrations_dir = "migrations"
 GITHUB_REPO = "Coderopp/personal-learning-os"
 GITHUB_BRANCH = "main"
 STATE_REPO = "Coderopp/learning-os-state"
+# Public half of the Web Push (VAPID) key pair; the private half is the VAPID_PRIVATE_KEY secret.
+VAPID_PUBLIC_KEY = "BLwHISeOEA_OSWhkrjyNoAgzKVL5voAqcamrEzkMYzJ4KmZM8B392DExzhM7HFgwAaRHsR11evsmwF_UtGUrtWI"
+VAPID_SUBJECT = "https://github.com/Coderopp/personal-learning-os"
 LLM_LARGE = "openai/gpt-oss-120b"
 LLM_FAST = "openai/gpt-oss-20b"
