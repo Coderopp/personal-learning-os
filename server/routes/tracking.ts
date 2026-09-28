@@ -2,7 +2,8 @@ import { Hono } from 'hono'
 import { type AppEnv, UserFacingError } from '../env'
 import { all, first, parseJson, run } from '../db'
 import { searchProviders } from '../search'
-import { addReview, competenciesOf, pickBottleneck, recurringErrorCounts } from '../learning'
+import { snapshot } from '../snapshot'
+import { addReview, benchmarkStatus, competenciesOf, pickBottleneck, recurringErrorCounts } from '../learning'
 
 export const tracking = new Hono<AppEnv>()
 
@@ -11,12 +12,24 @@ const MIN_RECALL_SAMPLES = 20
 
 tracking.get('/status', async c => {
   const usage = await first(c.env, 'SELECT * FROM llm_usage WHERE day = ?', new Date().toISOString().slice(0, 10))
+  const last = await first<{ value: string }>(c.env, `SELECT value FROM meta WHERE key = 'last_snapshot'`)
   return c.json({
+    snapshot: { repo: c.env.STATE_REPO ?? null, configured: Boolean(c.env.GITHUB_TOKEN && c.env.STATE_REPO), last: last ? JSON.parse(last.value) : null },
     email: c.get('email'),
     providers: { groq: Boolean(c.env.GROQ_API_KEY), ...searchProviders(c.env), git: Boolean(c.env.GITHUB_TOKEN) },
     models: { large: c.env.LLM_LARGE, fast: c.env.LLM_FAST },
     usage_today: usage ?? { calls: 0, tokens: 0, rate_limited: 0 },
   })
+})
+
+/** Manual "back up now"; the same job runs nightly via the cron trigger. */
+tracking.post('/snapshot', async c => {
+  try {
+    return c.json(await snapshot(c.env))
+  } catch (e) {
+    console.error('snapshot failed', e)
+    throw new UserFacingError('Backup failed. Check that GITHUB_TOKEN can write to the state repo.', 502)
+  }
 })
 
 tracking.get('/dashboard', async c => {
@@ -65,6 +78,7 @@ tracking.get('/dashboard', async c => {
     return r && r.n >= MIN_RECALL_SAMPLES ? { value: Math.round((100 * r.correct) / r.n), n: r.n } : { value: null, n: r?.n ?? 0 }
   }
   const benchmarked = comps.filter(x => x.benchmark_score != null)
+  const benchmarkDue = (await benchmarkStatus(c.env, missionId)).filter(b => b.due)
 
   return c.json({
     mission: parseJson(mission, ['excellence']),
@@ -79,11 +93,14 @@ tracking.get('/dashboard', async c => {
     last_session: lastSession,
     exploration,
     weekly,
+    benchmark_due: benchmarkDue,
     metrics: {
+      // Strict: demonstrated ability only. Unbenchmarked competencies count as 0, reported with coverage.
       capability: benchmarked.length
-        ? Math.round(benchmarked.reduce((s, x) => s + (x.benchmark_score ?? 0), 0) / benchmarked.length)
+        ? Math.round(comps.reduce((s, x) => s + (x.benchmark_score ?? 0), 0) / comps.length)
         : null,
       benchmarked: benchmarked.length,
+      coverage: `${benchmarked.length}/${comps.length}`,
       practice_accuracy: practice && practice.n >= 5 ? { value: Math.round(practice.avg ?? 0), n: practice.n } : { value: null, n: practice?.n ?? 0 },
       recall7: recallPct(7),
       recall30: recallPct(30),

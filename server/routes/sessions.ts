@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { type AppEnv, type Env, UserFacingError } from '../env'
 import { all, first, newId, nowIso, parseJson, run } from '../db'
 import { llm, SCHEMAS } from '../llm'
+import { searchTranscripts } from '../transcripts'
 import {
   addReview, bumpPracticeScore, competenciesOf, creditError, pickBottleneck, recordError, recurringErrorCounts, rescheduleReview,
 } from '../learning'
@@ -237,8 +238,12 @@ sessions.post('/sessions/:id/learn', async c => {
     schema: SCHEMAS.tutor,
     input: { task: 'learn', competency: focus?.name, attempts, resources },
   })
-  await run(c.env, 'UPDATE sessions SET state = json_set(state, ?, ?), last_active_at = ? WHERE id = ?', '$.learn', markdown, nowIso(), s.id)
-  return c.json({ markdown })
+  // Point at the exact moment in a saved video that covers the gap (keyword search, no LLM call).
+  const gaps = attempts.map(a => a.gap).filter(Boolean).join(' ')
+  const moments = gaps ? (await searchTranscripts(c.env, `${focus?.name ?? ''} ${gaps}`, { limit: 3 })) : []
+  const patch = JSON.stringify({ learn: markdown, learn_videos: moments })
+  await run(c.env, `UPDATE sessions SET state = json_patch(state, ?), last_active_at = ? WHERE id = ?`, patch, nowIso(), s.id)
+  return c.json({ markdown, moments })
 })
 
 /** Reflect: store the learner's model update, turn it into retention items, close the session. */

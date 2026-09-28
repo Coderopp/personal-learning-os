@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api, useAction, useApi } from '../lib/api'
-import type { Grade, Item, Mission } from '../lib/types'
+import type { Grade, Item, Mission, Moment } from '../lib/types'
+import { MomentList } from './Videos'
 import { Card, Chip, ErrorBanner, Spinner } from '../components/ui'
 import { AnswerBox } from '../components/AnswerBox'
-import { fmtTime } from './Videos'
+import { fmtTime } from '../lib/time'
 
 interface Note { id: string; t: number; text: string }
 interface AiNotes { summary: string; concepts: { t: number; name: string; note: string }[]; questions: Omit<Item, 'id'>[] }
@@ -38,6 +39,8 @@ const PLAYING = 1
 
 export default function VideoPlayer() {
   const { id = '' } = useParams()
+  const [params] = useSearchParams()
+  const deepLink = params.get('t') != null ? Number(params.get('t')) : null
   const { data: video, error, loading, reload, setData } = useApi<Video>(`/videos/${id}`)
   const missions = useApi<Mission[]>('/missions')
   const host = useRef<HTMLDivElement>(null)
@@ -56,7 +59,8 @@ export default function VideoPlayer() {
       if (!alive || !host.current || !window.YT) return
       player.current = new window.YT.Player(host.current, {
         videoId: video.id,
-        playerVars: { start: Math.floor(video.position || 0), rel: 0, modestbranding: 1, playsinline: 1 },
+        // A ?t= deep link (search hit, Learn stage, tutor citation) wins over the saved position.
+        playerVars: { start: Math.floor(deepLink ?? video.position ?? 0), rel: 0, modestbranding: 1, playsinline: 1 },
         events: { onStateChange: (e: { data: number }) => { if (e.data !== PLAYING) saveProgress() } },
       })
     })
@@ -65,6 +69,11 @@ export default function VideoPlayer() {
   }, [video?.id])
 
   useEffect(() => () => { saveProgress(); player.current?.destroy(); player.current = null }, [id])
+
+  // Jumping between moments of the same video only changes ?t=, so seek the existing player.
+  useEffect(() => {
+    if (deepLink != null && player.current?.seekTo) { player.current.seekTo(deepLink, true); player.current.playVideo() }
+  }, [deepLink])
 
   // Save position every 15 s while playing so the tab can resume where the PC stopped.
   useEffect(() => {
@@ -151,6 +160,7 @@ export default function VideoPlayer() {
         </div>
 
         <Card className="notes-card" title="Notes" subtitle="Tap a timestamp to jump back.">
+          <FindInVideo videoId={video.id} searchable={video.has_transcript} />
           <form className="note-input" onSubmit={e => { e.preventDefault(); if (noteText.trim()) addNote() }}>
             <span className="stamp">{fmtTime(noteAt ?? 0)}</span>
             <input ref={noteInput} value={noteText} placeholder="Note at this moment…"
@@ -272,5 +282,22 @@ function AiPanel({ video, now, seek, onNotes }: { video: Video; now: () => numbe
         </div>
       )}
     </Card>
+  )
+}
+
+function FindInVideo({ videoId, searchable }: { videoId: string; searchable: boolean }) {
+  const [q, setQ] = useState('')
+  const [hits, setHits] = useState<Moment[] | null>(null)
+  const action = useAction()
+  if (!searchable) return <p className="muted small-text">Load the transcript (“Transcript → notes”) to search inside this video.</p>
+  return (
+    <div className="find-in-video">
+      <form className="note-input" onSubmit={e => { e.preventDefault(); if (q.trim()) action.run(async () => setHits(await api<Moment[]>(`/videos/search?q=${encodeURIComponent(q)}&video=${videoId}`))) }}>
+        <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Find in this video…" />
+        <button className="secondary small" disabled={!q.trim() || action.busy}>Find</button>
+      </form>
+      <ErrorBanner error={action.error} />
+      {hits && (hits.length ? <MomentList moments={hits} showTitle={false} /> : <p className="muted small-text">Not mentioned in the transcript.</p>)}
+    </div>
   )
 }

@@ -4,6 +4,7 @@ import { all, first, newId, nowIso, parseJson, run } from '../db'
 import { llm, SCHEMAS } from '../llm'
 import { commitJson } from '../github'
 import { parseVideoId, videoMeta } from '../youtube'
+import { ingestVideo, searchTranscripts } from '../transcripts'
 
 export const library = new Hono<AppEnv>()
 
@@ -48,6 +49,14 @@ library.patch('/resources/:id', async c => {
   if (body.status === 'accepted' || body.status === 'deprecated') {
     const fresh = parseJson((await first(c.env, 'SELECT * FROM resources WHERE id = ?', id))!, [...RESOURCE_JSON])
     const { committed_sha: _sha, snippet: _snip, ...record } = fresh
+    const vid = body.status === 'accepted' ? parseVideoId(String(fresh.url)) : null
+    if (vid) {
+      // Approved videos become searchable: index captions in the background.
+      c.executionCtx.waitUntil(ingestVideo(c.env, vid, {
+        missionId: String(fresh.mission_id), competencyId: fresh.competency_id as string | null,
+        title: String(fresh.title), channel: fresh.author as string | null,
+      }).catch(e => console.error('ingest failed', e)))
+    }
     committed = await commitJson(c.env, `knowledge/resources/${fresh.mission_id}/${id}.json`, record,
       `knowledge: ${body.status === 'accepted' ? 'accept' : 'deprecate'} "${fresh.title}"`)
     if (committed) await run(c.env, 'UPDATE resources SET committed_sha = ? WHERE id = ?', committed, id)
@@ -113,11 +122,18 @@ library.post('/tutor', async c => {
   const comp = body.competency_id
     ? await first<{ name: string; description: string }>(c.env, 'SELECT name, description FROM competencies WHERE id = ?', body.competency_id)
     : null
+  // "Ask" can draw on moments from your saved videos, so answers can point to the exact timestamp.
+  const excerpts = body.task === 'ask' && body.message
+    ? (await searchTranscripts(c.env, `${comp?.name ?? ''} ${body.message}`, { limit: 4 })).map(m => ({ ...m, snippet: undefined, text: m.snippet.replace(/\*\*/g, '') }))
+    : []
   const { markdown } = await llm<{ markdown: string }>(c.env, {
     prompt: 'tutor',
     schema: SCHEMAS.tutor,
     tier: body.task === 'hint' ? 'fast' : 'large',
-    input: { task: body.task, competency: comp, question: body.question ?? '', learner_answer_so_far: body.answer ?? '', message: body.message ?? '' },
+    input: {
+      task: body.task, competency: comp, question: body.question ?? '', learner_answer_so_far: body.answer ?? '', message: body.message ?? '',
+      video_excerpts: excerpts,
+    },
   })
   return c.json({ markdown })
 })

@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useApi } from '../lib/api'
+import { api, useAction, useApi } from '../lib/api'
 import type { Status } from '../lib/types'
-import { Card, Chip, Spinner } from '../components/ui'
+import { Card, Chip, ErrorBanner, Spinner } from '../components/ui'
 
 interface HistoryRow {
   id: string; mission_title: string; kind: string; mode: string; started_at: string; ended_at: string | null
@@ -11,11 +12,32 @@ interface HistoryRow {
 const PROVIDERS: { key: keyof Status['providers']; label: string; hint: string }[] = [
   { key: 'groq', label: 'Groq (LLM)', hint: 'GROQ_API_KEY: required for every AI feature.' },
   { key: 'web', label: 'Tavily web search', hint: 'TAVILY_API_KEY: docs, courses, articles. Free tier at tavily.com.' },
-  { key: 'youtube', label: 'YouTube search', hint: 'YOUTUBE_API_KEY: agent-suggested videos. Google Cloud → YouTube Data API v3.' },
+  { key: 'youtube', label: 'YouTube search', hint: 'Works without a key. Optional YOUTUBE_API_KEY (Data API v3) is used first when set.' },
   { key: 'arxiv', label: 'arXiv', hint: 'Keyless. Papers.' },
   { key: 'github', label: 'GitHub search', hint: 'Keyless. Repositories.' },
   { key: 'git', label: 'Commit to repo', hint: 'GITHUB_TOKEN: approved resources and missions are committed to knowledge/.' },
 ]
+
+function Backup({ snapshot }: { snapshot: Status['snapshot'] }) {
+  const action = useAction()
+  const [last, setLast] = useState(snapshot.last)
+  const run = () => action.run(async () => {
+    const r = await api<{ committed: boolean; sha?: string; reason?: string; rows: number }>('/snapshot', { body: {} })
+    setLast({ ...r, at: new Date().toISOString().replace('T', ' ').slice(0, 19) })
+  })
+  return (
+    <Card title="Private memory backup" subtitle={snapshot.repo ? `Nightly at 02:00 IST → ${snapshot.repo} (private)` : 'Not configured'}>
+      {!snapshot.configured && <p className="muted small-text">Set GITHUB_TOKEN (fine-grained, contents: write on both repos) to enable backups.</p>}
+      {last && (
+        <p className="small-text">
+          Last: {new Date(`${last.at.replace(' ', 'T')}Z`).toLocaleString()} · {last.rows} rows · {last.committed ? `committed ${last.sha?.slice(0, 7)}` : last.reason}
+        </p>
+      )}
+      <ErrorBanner error={action.error} />
+      <button className="secondary small" disabled={!snapshot.configured || action.busy} onClick={run}>{action.busy ? 'Backing up…' : 'Back up now'}</button>
+    </Card>
+  )
+}
 
 export default function Settings({ status }: { status?: Status }) {
   const history = useApi<HistoryRow[]>('/history')
@@ -48,6 +70,7 @@ export default function Settings({ status }: { status?: Status }) {
           <p className="muted small-text">Signed in as {status?.email}. Primers and video notes are cached, so they only cost a call once.</p>
         </Card>
       </div>
+      {status && <Backup snapshot={status.snapshot} />}
       <Card title="Session history">
         {history.loading ? <Spinner /> : (
           <ul className="list">

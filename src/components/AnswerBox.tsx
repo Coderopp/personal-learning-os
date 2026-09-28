@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api, useAction } from '../lib/api'
+import { useDraft } from '../lib/draft'
 import type { Grade, Item } from '../lib/types'
 import { Md } from './Md'
 import { Chip, ErrorBanner, verdictTone } from './ui'
@@ -18,7 +19,7 @@ export function AnswerBox({ item, missionId, stage, sessionId, result, onGraded,
   index?: number
   placeholder?: string
 }) {
-  const [answer, setAnswer] = useState(result?.answer ?? '')
+  const [answer, setAnswer, clearDraft] = useDraft(result ? null : `${sessionId ?? missionId}:${item.id}`, result?.answer ?? '')
   const [hint, setHint] = useState<string | null>(null)
   const [showExpected, setShowExpected] = useState(false)
   const grade = useAction()
@@ -32,6 +33,7 @@ export function AnswerBox({ item, missionId, stage, sessionId, result, onGraded,
       },
     })
     onGraded({ ...g, answer })
+    clearDraft()
   })
 
   const getHint = () => hinting.run(async () => {

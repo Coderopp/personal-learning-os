@@ -4,6 +4,10 @@ main = "server/worker.ts"
 compatibility_date = "2026-05-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Nightly learner-state backup at 02:00 IST.
+[triggers]
+crons = ["30 20 * * *"]
+
 [assets]
 directory = "./dist"
 not_found_handling = "single-page-application"
@@ -18,5 +22,6 @@ migrations_dir = "migrations"
 [vars]
 GITHUB_REPO = "Coderopp/personal-learning-os"
 GITHUB_BRANCH = "main"
+STATE_REPO = "Coderopp/learning-os-state"
 LLM_LARGE = "openai/gpt-oss-120b"
 LLM_FAST = "openai/gpt-oss-20b"

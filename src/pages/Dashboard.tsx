@@ -16,9 +16,11 @@ interface Dash {
   last_session: { summary: string | null; ended_at: string } | null
   exploration: { id: string; title: string; mode: string; status: string; milestone_count: number; milestone_done: number; due: number }[]
   weekly: { minutes: number; sessions: number }
+  benchmark_due: { competency_id: string; name: string; reason: string }[]
   metrics: {
     capability: number | null
     benchmarked: number
+    coverage: string
     practice_accuracy: { value: number | null; n: number }
     recall7: { value: number | null; n: number }
     recall30: { value: number | null; n: number }
@@ -69,12 +71,19 @@ export default function Dashboard() {
           <p className="muted">{mission.goal}</p>
         </div>
         <div className="head-stats">
-          <Metric label="Capability" value={metrics.capability ?? '—'} note={metrics.capability == null ? 'no benchmark yet' : `target ${mission.target}`} dim={metrics.capability == null} />
+          <Metric label="Capability" value={metrics.capability ?? '—'} note={metrics.capability == null ? 'no benchmark yet' : `benchmarked ${metrics.coverage}`} dim={metrics.capability == null} />
           <Metric label="Target" value={mission.target} note={metrics.capability == null ? '' : `gap ${mission.target - metrics.capability}`} />
         </div>
       </header>
 
       <ErrorBanner error={session.error} />
+
+      {data.benchmark_due.length > 0 && !data.open_session && (
+        <div className="banner info bench-due">
+          <span><strong>Benchmark ready:</strong> {data.benchmark_due.map(b => `${b.name} (${b.reason})`).join(' · ')}. Prove it on unseen tasks to turn practice into capability.</span>
+          <Link className="button secondary small" to={`/missions/${mission.id}?c=${encodeURIComponent(data.benchmark_due[0].competency_id)}`}>Open</Link>
+        </div>
+      )}
 
       <section className="hero">
         <div className="hero-main">

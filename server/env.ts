@@ -6,6 +6,7 @@ export interface Env {
   GITHUB_TOKEN?: string
   GITHUB_REPO: string
   GITHUB_BRANCH: string
+  STATE_REPO?: string
   LLM_LARGE: string
   LLM_FAST: string
   ACCESS_AUD?: string

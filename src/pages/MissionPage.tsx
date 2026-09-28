@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, enc, useAction, useApi } from '../lib/api'
-import type { Competency, Mission, MissionDetail, Resource } from '../lib/types'
+import type { BenchmarkStatus, Competency, Mission, MissionDetail, Resource } from '../lib/types'
 import { Card, Chip, Empty, ErrorBanner, Score, Spinner } from '../components/ui'
 import { Md } from '../components/Md'
 import { ResourceCard } from '../components/ResourceCard'
 import { AskTutor } from '../components/AskTutor'
+import { VideoCard } from '../components/VideoCard'
 import { useStartSession } from './Dashboard'
 
 export default function MissionPage() {
@@ -70,6 +71,7 @@ function Workspace({ id }: { id: string }) {
   const [params, setParams] = useSearchParams()
   const { data: m, error, loading, reload } = useApi<MissionDetail>(`/missions/${enc(id)}`)
   const candidates = useApi<Resource[]>(`/resources?mission=${encodeURIComponent(id)}&status=candidate`)
+  const bench = useApi<{ competencies: BenchmarkStatus[] }>(`/benchmarks?mission=${encodeURIComponent(id)}`)
   const session = useStartSession()
   const action = useAction()
   const selectedId = params.get('c')
@@ -144,7 +146,8 @@ function Workspace({ id }: { id: string }) {
         <AddCompetency missionId={id} competencies={m.competencies} onAdded={reload} />
       </Card>
 
-      {selected && <CompetencyPanel key={selected.id} c={selected} all={m.competencies} onChange={reload} onClose={() => setParams({})} />}
+      {selected && <CompetencyPanel key={selected.id} c={selected} all={m.competencies} onChange={reload} onClose={() => setParams({})}
+        bench={bench.data?.competencies.find(b => b.competency_id === selected.id)} active={m.status === 'active'} />}
 
       <div className="grid-2">
         <Card title="Excellence means…" subtitle="Observable criteria. Benchmarks will test these.">
@@ -221,26 +224,47 @@ function AddCompetency({ missionId, competencies, onAdded }: { missionId: string
   )
 }
 
-type PanelTab = 'primer' | 'resources' | 'ask' | 'edit'
+type PanelTab = 'primer' | 'resources' | 'videos' | 'ask' | 'edit'
 
-function CompetencyPanel({ c, all, onChange, onClose }: { c: Competency; all: Competency[]; onChange: () => void; onClose: () => void }) {
+function CompetencyPanel({ c, all, onChange, onClose, bench, active }: {
+  c: Competency; all: Competency[]; onChange: () => void; onClose: () => void; bench?: BenchmarkStatus; active: boolean
+}) {
   const [tab, setTab] = useState<PanelTab>('primer')
+  const navigate = useNavigate()
+  const benchAction = useAction()
+  const startBenchmark = () => benchAction.run(async () => {
+    const run = await api<{ id: string }>('/benchmarks/runs', { body: { competency_id: c.id } })
+    navigate(`/benchmark/${run.id}`)
+  })
   const prereqNames = c.prerequisites.map(p => all.find(x => x.id === p)?.name).filter(Boolean)
   return (
     <Card className="panel-card"
       title={c.name}
       subtitle={<>{c.description}{prereqNames.length ? <> · builds on {prereqNames.join(', ')}</> : null}</>}
       actions={<button className="ghost small" onClick={onClose}>Close</button>}>
-      <div className="stat-line muted">
-        Practice score {c.practice_score == null ? '—' : Math.round(c.practice_score)} ({c.practice_n} graded) ·
-        Benchmark {c.benchmark_score == null ? 'not yet run' : Math.round(c.benchmark_score)}
+      <div className={`bench-strip ${bench?.due ? 'due' : ''}`}>
+        <div>
+          <strong>Capability {c.benchmark_score == null ? '— not benchmarked' : Math.round(c.benchmark_score)}</strong>
+          <small className="muted">
+            Practice {c.practice_score == null ? '—' : Math.round(c.practice_score)} ({c.practice_n} graded; practice ≠ capability)
+            {bench?.runs ? ` · ${bench.runs} benchmark${bench.runs > 1 ? 's' : ''}` : ''}
+            {bench?.due ? ` · ready: ${bench.reason}` : ''}
+          </small>
+        </div>
+        {active && (
+          <button className={bench?.due ? 'primary' : 'secondary'} disabled={benchAction.busy} onClick={startBenchmark}>
+            {benchAction.busy ? 'Preparing sealed tasks…' : 'Run benchmark'}
+          </button>
+        )}
       </div>
+      <ErrorBanner error={benchAction.error} />
       <div className="tabs">
-        {(['primer', 'resources', 'ask', 'edit'] as PanelTab[]).map(t =>
+        {(['primer', 'resources', 'videos', 'ask', 'edit'] as PanelTab[]).map(t =>
           <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t[0].toUpperCase() + t.slice(1)}</button>)}
       </div>
       {tab === 'primer' && <Primer id={c.id} />}
       {tab === 'resources' && <CompetencyResources c={c} />}
+      {tab === 'videos' && <CompetencyVideos c={c} />}
       {tab === 'ask' && <AskTutor competencyId={c.id} />}
       {tab === 'edit' && <EditCompetency c={c} onChange={onChange} onDeleted={onClose} />}
     </Card>
@@ -276,8 +300,31 @@ function Primer({ id }: { id: string }) {
   )
 }
 
+function CompetencyVideos({ c }: { c: Competency }) {
+  const { data, loading, error, reload } = useApi<Resource[]>(`/resources?competency=${encodeURIComponent(c.id)}&type=video`)
+  const action = useAction()
+  const findVideos = () => action.run(async () => {
+    const r = await api<{ added: number; searched: number }>(`/missions/${enc(c.mission_id)}/gather`, { body: { competency_id: c.id, kind: 'video' } })
+    reload()
+    if (!r.added) action.setError(r.searched ? 'Searched YouTube; nothing good enough to suggest.' : 'YouTube returned no results. Try again later.')
+  })
+  return (
+    <div>
+      <div className="actions">
+        <button className="secondary small" disabled={action.busy} onClick={findVideos}>{action.busy ? 'Searching YouTube & curating…' : 'Find videos'}</button>
+        <span className="muted small-text">The agent picks lectures and talks, not clips. Approved videos become searchable.</span>
+      </div>
+      <ErrorBanner error={error ?? action.error} />
+      {loading ? <Spinner /> : data?.length ? (
+        <div className="grid-cards">{data.map(r => <VideoCard key={r.id} r={r} onChange={reload} />)}</div>
+      ) : <p className="muted">No videos for this competency yet.</p>}
+    </div>
+  )
+}
+
 function CompetencyResources({ c }: { c: Competency }) {
-  const { data, loading, error, reload } = useApi<Resource[]>(`/resources?competency=${encodeURIComponent(c.id)}`)
+  const { data: all, loading, error, reload } = useApi<Resource[]>(`/resources?competency=${encodeURIComponent(c.id)}`)
+  const data = all?.filter(r => r.type !== 'video')
   const action = useAction()
   const findMore = () => action.run(async () => {
     const r = await api<{ added: number; searched: number }>(`/missions/${enc(c.mission_id)}/gather`, { body: { competency_id: c.id } })

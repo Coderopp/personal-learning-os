@@ -8,8 +8,8 @@ Everything runs on Cloudflare's free tier: one **Worker** serves the app and run
 |---|---|---|
 | `GROQ_API_KEY` | yes | console.groq.com → API Keys |
 | `TAVILY_API_KEY` | recommended | tavily.com (free tier). Without it the agent only searches arXiv + GitHub |
-| `YOUTUBE_API_KEY` | recommended | Google Cloud console → enable **YouTube Data API v3** → Credentials → API key |
-| `GITHUB_TOKEN` | optional | GitHub → Settings → Developer settings → Fine-grained token → only `Coderopp/personal-learning-os` → Contents: read & write. Approved resources and activated missions get committed to `knowledge/` |
+| `YOUTUBE_API_KEY` | optional | Video search works without it (YouTube's own search). If set, the official **YouTube Data API v3** is used first |
+| `GITHUB_TOKEN` | recommended | GitHub → Settings → Developer settings → Fine-grained token → repositories **`Coderopp/personal-learning-os` and `Coderopp/learning-os-state`** → Contents: read & write. Commits approved resources to `knowledge/` and runs the nightly private backup |
 
 ## 2. Database (done 2026-09-28, account pranav.bhadane.iitkgp)
 
@@ -60,6 +60,19 @@ The API verifies the Access token itself and **refuses all requests** (503) unti
 
 - **PC:** open `https://personal-learning-os.pranav-bhadane-iitkgp.workers.dev`, enter the emailed code.
 - **Tablet:** same URL, sign in, then *Share → Add to Home Screen* (iPad) or *⋮ → Install app* (Android). It opens full-screen like an app. Sessions, notes and video position sync through D1; a session started on one device resumes on the other.
+
+## Private backup and restore
+
+With `GITHUB_TOKEN` set, a cron trigger (`[triggers]` in `wrangler.toml`, 02:00 IST) writes all learner state to the private repo `Coderopp/learning-os-state` as one commit per day. Days with no changes are skipped. **System → Back up now** runs it on demand.
+
+To rebuild the database from a backup:
+
+```bash
+git clone https://github.com/Coderopp/learning-os-state /tmp/state
+npm run db:restore-state -- /tmp/state --remote
+```
+
+Restore upserts by primary key, so it is safe to run over an existing database.
 
 ## Local development
 

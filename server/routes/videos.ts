@@ -2,7 +2,9 @@ import { Hono } from 'hono'
 import { type AppEnv, UserFacingError } from '../env'
 import { all, first, newId, nowIso, parseJson, run } from '../db'
 import { llm, SCHEMAS } from '../llm'
-import { fetchTranscript, type Line, parsePastedTranscript, parseVideoId, transcriptToText, videoMeta } from '../youtube'
+import { fetchTranscript, type Line, parsePastedTranscript, parseVideoId, transcriptToText } from '../youtube'
+import { ingestVideo, saveTranscript, searchTranscripts } from '../transcripts'
+import { competenciesOf, pickBottleneck, recurringErrorCounts } from '../learning'
 
 export const videos = new Hono<AppEnv>()
 
@@ -15,29 +17,52 @@ videos.get('/videos', async c => {
   return c.json(rows)
 })
 
-/** Open a video by URL/id. Upserts it so progress and notes sync across devices. */
+/** Open a video by URL/id. Upserts it so progress and notes sync across devices; captions are indexed in the background. */
 videos.post('/videos', async c => {
   const b = await c.req.json<{ url: string; mission_id?: string; competency_id?: string }>()
   const id = parseVideoId(b.url ?? '')
   if (!id) throw new UserFacingError('That does not look like a YouTube link.')
-  const existing = await first(c.env, 'SELECT id FROM videos WHERE id = ?', id)
-  if (!existing) {
-    const meta = await videoMeta(id)
-    await run(c.env, 'INSERT INTO videos (id, title, channel, mission_id, competency_id) VALUES (?, ?, ?, ?, ?)',
-      id, meta?.title ?? 'YouTube video', meta?.channel ?? null, b.mission_id ?? null, b.competency_id ?? null)
-  } else if (b.mission_id) {
-    await run(c.env, 'UPDATE videos SET mission_id = COALESCE(mission_id, ?), competency_id = COALESCE(competency_id, ?) WHERE id = ?',
-      b.mission_id, b.competency_id ?? null, id)
-  }
+  const work = ingestVideo(c.env, id, { missionId: b.mission_id, competencyId: b.competency_id })
+  // Wait just long enough for the row to exist; the caption fetch may continue after the response.
+  const done = await Promise.race([work.then(() => true), new Promise<boolean>(r => setTimeout(() => r(false), 2500))])
+  if (!done) c.executionCtx.waitUntil(work.catch(e => console.error('ingest failed', e)))
+  if (!(await first(c.env, 'SELECT id FROM videos WHERE id = ?', id))) await work
   return c.json({ id })
+})
+
+/** Keyword search inside transcripts of saved videos (optionally one video). */
+videos.get('/videos/search', async c => {
+  const q = c.req.query('q')?.trim()
+  if (!q) return c.json([])
+  return c.json(await searchTranscripts(c.env, q, { videoId: c.req.query('video') || undefined, limit: 30 }))
+})
+
+/** Accepted videos for the primary mission's bottleneck that you haven't finished. */
+videos.get('/videos/suggested', async c => {
+  const m = await first<{ id: string }>(c.env, `SELECT id FROM missions WHERE status = 'active' ORDER BY role = 'primary' DESC, updated_at DESC LIMIT 1`)
+  if (!m) return c.json({ competency: null, videos: [] })
+  const bottleneck = pickBottleneck(await competenciesOf(c.env, m.id), await recurringErrorCounts(c.env, m.id))
+  if (!bottleneck) return c.json({ competency: null, videos: [] })
+  const rows = await all<{ url: string }>(c.env,
+    `SELECT r.id, r.title, r.url, r.author, r.duration_s, r.reason, v.position, v.duration
+     FROM resources r LEFT JOIN videos v ON r.url LIKE '%' || v.id || '%'
+     WHERE r.competency_id = ? AND r.type = 'video' AND r.status = 'accepted'
+       AND (v.id IS NULL OR v.duration IS NULL OR v.position < v.duration * 0.9)
+     ORDER BY r.created_at LIMIT 6`, bottleneck.competency.id)
+  return c.json({
+    competency: { id: bottleneck.competency.id, name: bottleneck.competency.name },
+    videos: rows.map(r => ({ ...r, video_id: parseVideoId(r.url) })),
+  })
 })
 
 videos.get('/videos/:id', async c => {
   const v = await first(c.env, 'SELECT * FROM videos WHERE id = ?', c.req.param('id'))
   if (!v) throw new UserFacingError('Video not found', 404)
   const notes = await all(c.env, 'SELECT * FROM video_notes WHERE video_id = ? ORDER BY t', v.id)
+  const indexed = await first(c.env, 'SELECT 1 AS x FROM transcript_segments WHERE video_id = ? LIMIT 1', v.id)
   const { transcript, ...rest } = parseJson(v, ['ai_notes'])
-  return c.json({ ...rest, has_transcript: transcript != null, notes })
+  // Searchable if either the raw transcript or its index exists (a restore keeps the index, not the raw text).
+  return c.json({ ...rest, has_transcript: transcript != null || Boolean(indexed), notes })
 })
 
 videos.put('/videos/:id/progress', async c => {
@@ -66,8 +91,8 @@ videos.post('/videos/:id/transcript', async c => {
   const b = await c.req.json<{ text?: string }>().catch(() => ({} as { text?: string }))
   const lines = b.text?.trim() ? parsePastedTranscript(b.text) : await fetchTranscript(id)
   if (!lines?.length) return c.json({ available: false })
-  await run(c.env, 'UPDATE videos SET transcript = ? WHERE id = ?', JSON.stringify(lines), id)
-  return c.json({ available: true, lines: lines.length })
+  const segments = await saveTranscript(c.env, id, lines)
+  return c.json({ available: true, lines: lines.length, segments })
 })
 
 async function videoContext(env: AppEnv['Bindings'], id: string, from = 0, to = Infinity) {

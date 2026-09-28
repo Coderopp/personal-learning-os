@@ -165,4 +165,13 @@ export const SCHEMAS = {
     recall: arr(qa),
     milestone_done: bool,
   }),
+  examiner: obj({
+    tasks: arr(obj({
+      kind: oneOf('concept', 'design', 'transfer'),
+      prompt: str,
+      expected: str,
+      rubric: obj({ concept: str, implementation: str, reasoning: str, transfer: str }),
+    })),
+  }),
+  benchmarkGrade: obj({ concept: num, implementation: num, reasoning: num, transfer: num, feedback: str }),
 } satisfies Record<string, JsonSchema>

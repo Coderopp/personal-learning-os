@@ -6,6 +6,7 @@ import { library } from './routes/library'
 import { sessions } from './routes/sessions'
 import { tracking } from './routes/tracking'
 import { videos } from './routes/videos'
+import { benchmarks } from './routes/benchmarks'
 
 export const app = new Hono<AppEnv>().basePath('/api')
 
@@ -19,6 +20,7 @@ app.route('/', library)
 app.route('/', sessions)
 app.route('/', tracking)
 app.route('/', videos)
+app.route('/', benchmarks)
 
 app.notFound(c => c.json({ error: 'Not found' }, 404))
 app.onError((err, c) => {
