@@ -10,6 +10,7 @@ export interface Hit {
   duration_s?: number
   views?: number
   published?: string
+  stars?: number
 }
 
 export function searchProviders(env: Env) {
@@ -34,6 +35,8 @@ export async function gather(env: Env, webQueries: string[], youtubeQuery: strin
   for (const s of settled) {
     if (s.status === 'rejected') { console.error('search provider failed', s.reason); continue }
     for (const h of s.value) {
+      // Toy/student repos are noise for a curated library; the curator never sees them.
+      if (h.source === 'github' && (h.stars ?? 0) < 100) continue
       // YouTube URLs differ only in ?v=, so key them by video id; other URLs by path.
       const key = h.url.match(/[?&]v=([\w-]{11})/)?.[1] ?? h.url.replace(/[#?].*$/, '').replace(/\/$/, '')
       if (!seen.has(key)) { seen.add(key); hits.push(h) }
@@ -155,7 +158,7 @@ async function arxiv(query: string): Promise<Hit[]> {
 
 async function github(env: Env, query: string): Promise<Hit[]> {
   const q = encodeURIComponent(query.split(/\s+/).slice(0, 5).join(' '))
-  const res = await fetch(`https://api.github.com/search/repositories?q=${q}&sort=stars&per_page=3`, {
+  const res = await fetch(`https://api.github.com/search/repositories?q=${q}&sort=stars&per_page=5`, {
     headers: {
       'user-agent': 'personal-learning-os',
       accept: 'application/vnd.github+json',
@@ -168,6 +171,7 @@ async function github(env: Env, query: string): Promise<Hit[]> {
     title: r.full_name,
     url: r.html_url,
     snippet: `${r.description ?? ''} (${r.stargazers_count.toLocaleString()} stars)`,
+    stars: r.stargazers_count,
     source: 'github' as const,
   }))
 }

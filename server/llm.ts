@@ -8,6 +8,28 @@ type JsonSchema = Record<string, unknown>
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 /**
+ * Groq's free tier allows ~8k tokens/minute PER MODEL and counts the requested max output against it,
+ * so every operation gets a right-sized output budget, and cheap operations use the fast model's separate bucket.
+ */
+const TPM_LIMIT = 8000
+const BUDGET: Record<PromptName, { tier: Tier; max: number }> = {
+  planner: { tier: 'large', max: 3500 },
+  'session-coach': { tier: 'large', max: 2500 },
+  evaluator: { tier: 'large', max: 1500 },
+  tutor: { tier: 'large', max: 2000 },
+  primer: { tier: 'large', max: 2500 },
+  'project-coach': { tier: 'large', max: 2000 },
+  examiner: { tier: 'large', max: 3500 },
+  // Curation is judgment-heavy; its input is capped (12 results, short snippets) so the large model fits the budget.
+  curator: { tier: 'large', max: 2000 },
+  'benchmark-grader': { tier: 'large', max: 1200 },
+  'question-generator': { tier: 'fast', max: 1500 },
+  reflection: { tier: 'fast', max: 1200 },
+  'video-notes': { tier: 'fast', max: 2500 },
+}
+const estimateTokens = (text: string) => Math.ceil(text.length / 3.5)
+
+/**
  * Call Groq with a versioned prompt and force the reply into `schema` (strict JSON-schema mode).
  * Every call is counted in llm_usage so the UI can show quota.
  */
@@ -19,17 +41,26 @@ export async function llm<T>(env: Env, opts: {
   maxTokens?: number
 }): Promise<T> {
   if (!env.GROQ_API_KEY) throw new UserFacingError('GROQ_API_KEY is not configured on the server.', 503)
-  const tier = opts.tier ?? 'large'
+  const budget = BUDGET[opts.prompt]
+  const tier = opts.tier ?? budget.tier
+  const system = `${PROMPTS._shared}\n\n${PROMPTS[opts.prompt]}`
+  const user = JSON.stringify(opts.input)
+  const promptTokens = estimateTokens(system) + estimateTokens(user)
+  if (promptTokens > TPM_LIMIT - 800) {
+    throw new UserFacingError('This request is too large for Groq\'s free tier. Try a shorter input.', 400)
+  }
+  // Never reserve more than what's left of the per-minute budget after the prompt.
+  const maxTokens = Math.min(opts.maxTokens ?? budget.max, TPM_LIMIT - promptTokens - 200)
   const body = {
     model: tier === 'large' ? env.LLM_LARGE : env.LLM_FAST,
     messages: [
-      { role: 'system', content: `${PROMPTS._shared}\n\n${PROMPTS[opts.prompt]}` },
-      { role: 'user', content: JSON.stringify(opts.input) },
+      { role: 'system', content: system },
+      { role: 'user', content: user },
     ],
     response_format: { type: 'json_schema', json_schema: { name: opts.prompt.replace(/-/g, '_'), strict: true, schema: opts.schema } },
     reasoning_effort: tier === 'large' ? 'medium' : 'low',
     include_reasoning: false,
-    max_completion_tokens: opts.maxTokens ?? 4096,
+    max_completion_tokens: maxTokens,
     temperature: 0.4,
   }
 
@@ -54,8 +85,9 @@ export async function llm<T>(env: Env, opts: {
     const retryAfter = Number(res.headers.get('retry-after') ?? '0')
     if (res.status === 429) {
       await recordUsage(env, 0, true)
-      // Short waits are worth absorbing; long ones (daily quota) go straight back to the learner.
-      if (attempt < 2 && retryAfter > 0 && retryAfter <= 8) {
+      // Per-minute limits clear within seconds: absorb them (waiting costs no Worker CPU).
+      // Long waits (daily quota) go straight back to the learner.
+      if (attempt < 3 && retryAfter > 0 && retryAfter <= 25) {
         await sleep(retryAfter * 1000)
         continue
       }
@@ -64,12 +96,17 @@ export async function llm<T>(env: Env, opts: {
         429,
       )
     }
+    const detail = res.status === 400 || res.status === 413 ? await res.text() : ''
+    // Strict JSON-schema mode occasionally rejects a generation (e.g. extra fields); a fresh sample usually passes.
+    if (res.status === 400 && (detail.includes('json_validate_failed') || detail.includes('does not match the expected schema')) && attempt < 2) continue
+    if (res.status === 413) {
+      throw new UserFacingError('This request is too large for Groq\'s free tier. Try again with less input.', 400)
+    }
     if (res.status >= 500 && attempt < 2) {
       await sleep(500 * 2 ** attempt)
       continue
     }
-    const detail = (await res.text()).slice(0, 300)
-    console.error('groq error', res.status, detail)
+    console.error('groq error', res.status, (detail || await res.text()).slice(0, 300))
     throw new UserFacingError(`Groq request failed (${res.status}).`, 502)
   }
 }

@@ -111,7 +111,7 @@ async function videoContext(env: AppEnv['Bindings'], id: string, from = 0, to = 
 /** Transcript → summary, key concepts (with timestamps) and questions. Cached on the video. */
 videos.post('/videos/:id/ai-notes', async c => {
   const id = c.req.param('id')
-  const out = await llm(c.env, { prompt: 'video-notes', schema: SCHEMAS.videoNotes, tier: 'fast', input: await videoContext(c.env, id), maxTokens: 3000 })
+  const out = await llm(c.env, { prompt: 'video-notes', schema: SCHEMAS.videoNotes, tier: 'fast', input: await videoContext(c.env, id) })
   await run(c.env, 'UPDATE videos SET ai_notes = ? WHERE id = ?', JSON.stringify(out), id)
   return c.json(out)
 })
@@ -121,7 +121,7 @@ videos.post('/videos/:id/quiz', async c => {
   const b = await c.req.json<{ from: number; to: number }>()
   const out = await llm<{ questions: unknown[] }>(c.env, {
     prompt: 'video-notes', schema: SCHEMAS.videoNotes, tier: 'fast',
-    input: await videoContext(c.env, c.req.param('id'), Math.max(0, b.from), b.to), maxTokens: 2000,
+    input: await videoContext(c.env, c.req.param('id'), Math.max(0, b.from), b.to),
   })
   return c.json({ questions: out.questions.slice(0, 3) })
 })
