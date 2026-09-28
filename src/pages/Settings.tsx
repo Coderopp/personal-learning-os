@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, useAction, useApi } from '../lib/api'
 import type { Status } from '../lib/types'
 import { Card, Chip, ErrorBanner, Spinner } from '../components/ui'
+import { currentSubscription, disableReminders, enableReminders, isIOS, isStandalone, pushSupported } from '../lib/push'
 
 interface HistoryRow {
   id: string; mission_title: string; kind: string; mode: string; started_at: string; ended_at: string | null
@@ -39,6 +40,52 @@ function Backup({ snapshot }: { snapshot: Status['snapshot'] }) {
   )
 }
 
+function Reminders() {
+  const devices = useApi<{ endpoint: string; label: string; last_sent_at: string | null }[]>('/push/subscriptions')
+  const [endpoint, setEndpoint] = useState<string | null | undefined>(undefined)
+  const [note, setNote] = useState<string | null>(null)
+  const action = useAction()
+  useEffect(() => { currentSubscription().then(s => setEndpoint(s?.endpoint ?? null)).catch(() => setEndpoint(null)) }, [])
+  const here = Boolean(endpoint && devices.data?.some(d => d.endpoint === endpoint))
+
+  const enable = () => action.run(async () => {
+    const sub = await enableReminders()
+    setEndpoint(sub.endpoint)
+    await api('/push/test', { body: { endpoint: sub.endpoint } })
+    setNote('Reminders are on. A test notification is on its way.')
+    devices.reload()
+  })
+  const disable = () => action.run(async () => { await disableReminders(); setEndpoint(null); setNote(null); devices.reload() })
+  const test = () => action.run(async () => { await api('/push/test', { body: { endpoint } }); setNote('Test sent.') })
+
+  return (
+    <Card title="Evening reminder" subtitle="One notification at 20:00 IST, only on days you haven't studied and reviews (or a benchmark) are waiting.">
+      {!pushSupported() ? <p className="muted small-text">This browser doesn't support notifications.</p> : (
+        <>
+          {isIOS() && !isStandalone() && (
+            <p className="banner warn small-text">On iPad/iPhone, reminders only work in the installed app: Share → <b>Add to Home Screen</b>, then open it from there.</p>
+          )}
+          <div className="actions">
+            {here
+              ? <><Chip tone="good">on for this device</Chip><button className="ghost small" disabled={action.busy} onClick={test}>Send test</button><button className="ghost small" disabled={action.busy} onClick={disable}>Turn off</button></>
+              : <button className="primary small" disabled={action.busy || endpoint === undefined} onClick={enable}>{action.busy ? 'Turning on…' : 'Turn on for this device'}</button>}
+          </div>
+        </>
+      )}
+      {note && <p className="small-text">{note}</p>}
+      <ErrorBanner error={action.error ?? devices.error} />
+      {devices.data && devices.data.length > 0 && (
+        <ul className="list plain">
+          {devices.data.map(d => (
+            <li key={d.endpoint}><div><strong>{d.label}{d.endpoint === endpoint ? ' (this device)' : ''}</strong>
+              <small className="muted">{d.last_sent_at ? `last sent ${new Date(`${d.last_sent_at.replace(' ', 'T')}Z`).toLocaleString()}` : 'nothing sent yet'}</small></div></li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
+}
+
 export default function Settings({ status }: { status?: Status }) {
   const history = useApi<HistoryRow[]>('/history')
   return (
@@ -70,7 +117,10 @@ export default function Settings({ status }: { status?: Status }) {
           <p className="muted small-text">Signed in as {status?.email}. Primers and video notes are cached, so they only cost a call once.</p>
         </Card>
       </div>
-      {status && <Backup snapshot={status.snapshot} />}
+      <div className="grid-2">
+        <Reminders />
+        {status && <Backup snapshot={status.snapshot} />}
+      </div>
       <Card title="Session history">
         {history.loading ? <Spinner /> : (
           <ul className="list">

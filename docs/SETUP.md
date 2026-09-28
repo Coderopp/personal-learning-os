@@ -74,13 +74,20 @@ npm run db:restore-state -- /tmp/state --remote
 
 Restore upserts by primary key, so it is safe to run over an existing database.
 
+## Evening reminders (Web Push)
+
+The Worker sends one notification at 20:00 IST, only on days you haven't studied and reviews (or a benchmark) are waiting. Turn it on per device in **System → Evening reminder**. On iPad/iPhone, add the app to the Home Screen first; Apple only delivers web push to installed apps.
+
+The VAPID public key is in `wrangler.toml`; the private key is the `VAPID_PRIVATE_KEY` secret (already set in production). To rotate keys, generate a new P-256 pair, update both, and turn reminders on again on each device.
+
 ## Local development
 
 ```bash
 cp .dev.vars.example .dev.vars    # fill GROQ_API_KEY; DEV_NO_AUTH=1 is for local only
 npm install
 npm run db:migrate && npm run db:import
-npm run dev                        # http://localhost:5173 (API on :8788 via wrangler dev) (also reachable from the tablet at http://<pc-ip>:5173)
+npm run dev                        # http://localhost:5173 (API on :8788 via wrangler dev)
+npm test                           # domain-rule tests (streaks) (also reachable from the tablet at http://<pc-ip>:5173)
 ```
 
 ## Free-tier notes

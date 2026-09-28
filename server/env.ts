@@ -7,6 +7,9 @@ export interface Env {
   GITHUB_REPO: string
   GITHUB_BRANCH: string
   STATE_REPO?: string
+  VAPID_PUBLIC_KEY?: string
+  VAPID_PRIVATE_KEY?: string
+  VAPID_SUBJECT?: string
   LLM_LARGE: string
   LLM_FAST: string
   ACCESS_AUD?: string
