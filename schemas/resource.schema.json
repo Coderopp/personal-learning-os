@@ -1,51 +1,27 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "LearningResource",
+  "description": "Every resource must have a reason to exist. Written to knowledge/resources/<mission>/<id>.json when approved.",
   "type": "object",
-  "required": [
-    "id",
-    "title",
-    "type",
-    "level",
-    "reason",
-    "url"
-  ],
+  "required": ["id", "mission_id", "title", "type", "level", "reason", "url"],
   "properties": {
-    "id": {
-      "type": "string"
-    },
-    "title": {
-      "type": "string"
-    },
-    "type": {
-      "enum": [
-        "book",
-        "paper",
-        "course",
-        "article",
-        "documentation",
-        "repository",
-        "lecture"
-      ]
-    },
-    "level": {
-      "type": "string"
-    },
-    "domain": {
-      "type": "string"
-    },
-    "url": {
-      "type": "string",
-      "format": "uri"
-    },
-    "reason": {
-      "type": "string"
-    },
-    "official": {
-      "type": "boolean"
-    },
-    "lastVerified": {
-      "type": "string"
-    }
+    "id": { "type": "string" },
+    "mission_id": { "type": "string" },
+    "competency_id": { "type": ["string", "null"] },
+    "title": { "type": "string" },
+    "type": { "enum": ["book", "paper", "course", "article", "documentation", "repository", "lecture", "video"] },
+    "level": { "enum": ["beginner", "intermediate", "advanced"] },
+    "url": { "type": "string", "format": "uri" },
+    "reason": { "type": "string", "minLength": 10 },
+    "est_minutes": { "type": ["integer", "null"] },
+    "official": { "type": ["boolean", "integer"] },
+    "hands_on": { "type": ["boolean", "integer"] },
+    "supports": { "type": "array", "items": { "enum": ["concept", "practice", "project"] } },
+    "source": { "type": "string" },
+    "author": { "type": ["string", "null"] },
+    "status": { "enum": ["candidate", "accepted", "deferred", "rejected", "deprecated"] },
+    "note": { "type": ["string", "null"] },
+    "last_verified": { "type": ["string", "null"] },
+    "created_at": { "type": "string" }
   }
 }

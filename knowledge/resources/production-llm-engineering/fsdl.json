@@ -1,0 +1,19 @@
+{
+  "id": "fsdl",
+  "mission_id": "production-llm-engineering",
+  "competency_id": "production-llm-engineering/production",
+  "title": "Full Stack Deep Learning",
+  "url": "https://fullstackdeeplearning.com/course/",
+  "type": "course",
+  "level": "advanced",
+  "official": true,
+  "hands_on": true,
+  "reason": "Included because it connects modeling to experimentation, deployment and production operations.",
+  "supports": [
+    "concept",
+    "project"
+  ],
+  "source": "seed",
+  "status": "accepted",
+  "last_verified": "2026-09-28"
+}

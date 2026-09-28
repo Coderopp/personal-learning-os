@@ -1,0 +1,11 @@
+# Copy to .dev.vars for local development (gitignored). Production values go in Cloudflare → Pages → Settings → Variables.
+GROQ_API_KEY=
+TAVILY_API_KEY=
+YOUTUBE_API_KEY=
+# Fine-grained PAT, contents:write on Coderopp/personal-learning-os only. Optional locally.
+GITHUB_TOKEN=
+# Local only: skip Cloudflare Access verification.
+DEV_NO_AUTH=1
+# Production: Cloudflare Access application audience tag + team domain (e.g. yourteam.cloudflareaccess.com)
+ACCESS_AUD=
+ACCESS_TEAM_DOMAIN=

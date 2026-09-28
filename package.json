@@ -1,19 +1,42 @@
 {
   "name": "personal-learning-os",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "prompts": "node scripts/build-prompts.mjs",
+    "dev": "npm run prompts && npm run build && concurrently -k -n api,web \"wrangler pages dev dist --port 8788 --ip 0.0.0.0 --live-reload\" \"vite\"",
+    "dev:api": "npm run prompts && wrangler pages dev dist --port 8788",
+    "build": "npm run prompts && tsc -p tsconfig.json && tsc -p server/tsconfig.json && vite build",
+    "preview": "npm run build && wrangler pages dev dist --port 8788 --ip 0.0.0.0",
+    "db:migrate": "wrangler d1 migrations apply learning-os --local",
+    "db:migrate:remote": "wrangler d1 migrations apply learning-os --remote",
+    "db:import": "node scripts/import-knowledge.mjs",
+    "validate": "node scripts/validate-knowledge.mjs",
+    "deploy": "npm run build && wrangler pages deploy dist"
   },
   "dependencies": {
+    "hono": "^4.13.10",
+    "jose": "^6.2.12",
+    "katex": "^0.18.9",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.18.4",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.0.2",
-    "vite": "^7.1.7"
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "concurrently": "^9.2.4",
+    "typescript": "^7.0.2",
+    "vite": "^7.1.7",
+    "wrangler": "^4.86.0"
   }
 }

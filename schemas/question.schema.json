@@ -2,42 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "LearningQuestion",
   "type": "object",
-  "required": [
-    "id",
-    "skill",
-    "type",
-    "difficulty",
-    "prompt",
-    "expected"
-  ],
+  "required": ["id", "mission_id", "type", "difficulty", "prompt", "expected"],
   "properties": {
-    "id": {
-      "type": "string"
-    },
-    "skill": {
-      "type": "string"
-    },
-    "type": {
-      "enum": [
-        "recall",
-        "explanation",
-        "derivation",
-        "diagnosis",
-        "debugging",
-        "design",
-        "transfer"
-      ]
-    },
-    "difficulty": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 5
-    },
-    "prompt": {
-      "type": "string"
-    },
-    "expected": {
-      "type": "string"
-    }
+    "id": { "type": "string" },
+    "mission_id": { "type": "string" },
+    "competency_id": { "type": ["string", "null"] },
+    "type": { "enum": ["recall", "explanation", "derivation", "prediction", "diagnosis", "debugging", "design", "transfer"] },
+    "difficulty": { "type": "integer", "minimum": 1, "maximum": 5 },
+    "prompt": { "type": "string" },
+    "expected": { "type": "string" },
+    "misconceptions": { "type": "array", "items": { "type": "string" } }
   }
 }

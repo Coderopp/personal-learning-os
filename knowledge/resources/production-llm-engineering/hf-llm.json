@@ -1,0 +1,19 @@
+{
+  "id": "hf-llm",
+  "mission_id": "production-llm-engineering",
+  "competency_id": "production-llm-engineering/transformers",
+  "title": "Hugging Face LLM Course",
+  "url": "https://huggingface.co/learn/llm-course/chapter0/1",
+  "type": "course",
+  "level": "beginner",
+  "official": true,
+  "hands_on": true,
+  "reason": "Included because it is a structured, hands-on path through Transformers, datasets, fine-tuning and deployment.",
+  "supports": [
+    "concept",
+    "practice"
+  ],
+  "source": "seed",
+  "status": "accepted",
+  "last_verified": "2026-09-28"
+}
