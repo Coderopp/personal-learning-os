@@ -14,5 +14,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install
-      - run: npm run build
+      - run: npm ci
+      - run: npm run validate   # knowledge/ matches schemas, prerequisite graphs are acyclic
+      - run: npm run build      # typecheck app + server, bundle

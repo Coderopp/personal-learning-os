@@ -1,0 +1,276 @@
+import { useEffect, useRef, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { api, useAction, useApi } from '../lib/api'
+import type { Grade, Item, Mission } from '../lib/types'
+import { Card, Chip, ErrorBanner, Spinner } from '../components/ui'
+import { AnswerBox } from '../components/AnswerBox'
+import { fmtTime } from './Videos'
+
+interface Note { id: string; t: number; text: string }
+interface AiNotes { summary: string; concepts: { t: number; name: string; note: string }[]; questions: Omit<Item, 'id'>[] }
+interface Video {
+  id: string; title: string; channel: string | null; mission_id: string | null; competency_id: string | null
+  position: number; duration: number | null; has_transcript: boolean; ai_notes: AiNotes | null; notes: Note[]
+}
+
+// Minimal typing for the YouTube IFrame API.
+interface YTPlayer {
+  getCurrentTime(): number; getDuration(): number; getPlayerState(): number; seekTo(s: number, allow: boolean): void
+  playVideo(): void; pauseVideo(): void; setPlaybackRate(r: number): void; destroy(): void
+}
+declare global {
+  interface Window { YT?: { Player: new (el: HTMLElement, opts: unknown) => YTPlayer }; onYouTubeIframeAPIReady?: () => void }
+}
+
+let ytReady: Promise<void> | null = null
+function loadYouTubeApi() {
+  ytReady ??= new Promise(resolve => {
+    if (window.YT?.Player) return resolve()
+    window.onYouTubeIframeAPIReady = () => resolve()
+    const s = document.createElement('script')
+    s.src = 'https://www.youtube.com/iframe_api'
+    document.head.appendChild(s)
+  })
+  return ytReady
+}
+
+const PLAYING = 1
+
+export default function VideoPlayer() {
+  const { id = '' } = useParams()
+  const { data: video, error, loading, reload, setData } = useApi<Video>(`/videos/${id}`)
+  const missions = useApi<Mission[]>('/missions')
+  const host = useRef<HTMLDivElement>(null)
+  const player = useRef<YTPlayer | null>(null)
+  const [rate, setRate] = useState(1)
+  const [noteText, setNoteText] = useState('')
+  const [noteAt, setNoteAt] = useState<number | null>(null)
+  const noteInput = useRef<HTMLInputElement>(null)
+  const saving = useAction()
+
+  // Create the player once the video row (and its saved position) is known.
+  useEffect(() => {
+    if (!video || player.current || !host.current) return
+    let alive = true
+    loadYouTubeApi().then(() => {
+      if (!alive || !host.current || !window.YT) return
+      player.current = new window.YT.Player(host.current, {
+        videoId: video.id,
+        playerVars: { start: Math.floor(video.position || 0), rel: 0, modestbranding: 1, playsinline: 1 },
+        events: { onStateChange: (e: { data: number }) => { if (e.data !== PLAYING) saveProgress() } },
+      })
+    })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video?.id])
+
+  useEffect(() => () => { saveProgress(); player.current?.destroy(); player.current = null }, [id])
+
+  // Save position every 15 s while playing so the tab can resume where the PC stopped.
+  useEffect(() => {
+    const t = setInterval(() => { if (player.current?.getPlayerState?.() === PLAYING) saveProgress() }, 15_000)
+    return () => clearInterval(t)
+  }, [id])
+
+  function saveProgress() {
+    const p = player.current
+    if (!p?.getCurrentTime) return
+    const position = p.getCurrentTime()
+    if (!Number.isFinite(position)) return
+    api(`/videos/${id}/progress`, { method: 'PUT', body: { position, duration: p.getDuration?.() || undefined } }).catch(() => {})
+  }
+
+  const now = () => player.current?.getCurrentTime?.() ?? 0
+  const seek = (t: number) => { player.current?.seekTo(t, true); player.current?.playVideo() }
+
+  // Keyboard shortcuts (PC): n = note, space = play/pause, j/l = ∓10 s.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.metaKey || e.ctrlKey) return
+      const p = player.current
+      if (!p) return
+      if (e.key === 'n') { e.preventDefault(); setNoteAt(now()); noteInput.current?.focus() }
+      else if (e.key === ' ') { e.preventDefault(); if (p.getPlayerState() === PLAYING) p.pauseVideo(); else p.playVideo() }
+      else if (e.key === 'j') p.seekTo(Math.max(0, now() - 10), true)
+      else if (e.key === 'l') p.seekTo(now() + 10, true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const addNote = () => saving.run(async () => {
+    const t = noteAt ?? now()
+    const { id: noteId } = await api<{ id: string }>(`/videos/${id}/notes`, { body: { t, text: noteText } })
+    setData(v => v && { ...v, notes: [...v.notes, { id: noteId, t, text: noteText }].sort((a, b) => a.t - b.t) })
+    setNoteText('')
+    setNoteAt(null)
+  })
+  const deleteNote = (noteId: string) => saving.run(async () => {
+    await api(`/video-notes/${noteId}`, { method: 'DELETE' })
+    setData(v => v && { ...v, notes: v.notes.filter(n => n.id !== noteId) })
+  })
+  const linkMission = (missionId: string) => saving.run(async () => {
+    await api('/videos', { body: { url: id, mission_id: missionId } })
+    reload()
+  })
+
+  if (loading && !video) return <div className="page"><Spinner /></div>
+  if (error || !video) return <div className="page"><ErrorBanner error={error ?? 'Video not found'} /></div>
+
+  return (
+    <div className="page video-page">
+      <header className="page-head">
+        <div>
+          <span className="kicker"><Link to="/videos">Videos</Link> · {video.channel}</span>
+          <h1>{video.title}</h1>
+        </div>
+        <label className="field inline">
+          <span>Mission</span>
+          <select value={video.mission_id ?? ''} disabled={Boolean(video.mission_id)} onChange={e => e.target.value && linkMission(e.target.value)}>
+            <option value="">Link to a mission…</option>
+            {missions.data?.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+          </select>
+        </label>
+      </header>
+
+      <div className="video-layout">
+        <div className="video-main">
+          <div className="player-frame"><div ref={host} /></div>
+          <div className="player-controls">
+            {[1, 1.25, 1.5, 1.75, 2].map(r => (
+              <button key={r} className={`small ${rate === r ? 'secondary' : 'ghost'}`} onClick={() => { setRate(r); player.current?.setPlaybackRate(r) }}>{r}×</button>
+            ))}
+            <button className="ghost small" onClick={() => player.current?.seekTo(Math.max(0, now() - 10), true)}>⟲ 10</button>
+            <button className="ghost small" onClick={() => player.current?.seekTo(now() + 10, true)}>10 ⟳</button>
+            <span className="muted kbd-hint">n note · space play · j/l ±10s</span>
+          </div>
+        </div>
+        <div className="video-ai">
+          <AiPanel video={video} now={now} seek={seek} onNotes={ai => setData(v => v && { ...v, ai_notes: ai, has_transcript: true })} />
+        </div>
+
+        <Card className="notes-card" title="Notes" subtitle="Tap a timestamp to jump back.">
+          <form className="note-input" onSubmit={e => { e.preventDefault(); if (noteText.trim()) addNote() }}>
+            <span className="stamp">{fmtTime(noteAt ?? 0)}</span>
+            <input ref={noteInput} value={noteText} placeholder="Note at this moment…"
+              onFocus={() => { if (noteAt == null) setNoteAt(now()) }}
+              onChange={e => { if (noteAt == null) setNoteAt(now()); setNoteText(e.target.value) }} />
+            <button className="primary small" disabled={!noteText.trim() || saving.busy}>Add</button>
+          </form>
+          <ErrorBanner error={saving.error} />
+          <ul className="notes">
+            {video.notes.map(n => (
+              <li key={n.id}>
+                <button className="stamp" onClick={() => seek(n.t)}>{fmtTime(n.t)}</button>
+                <span>{n.text}</span>
+                <button className="ghost small" aria-label="Delete note" onClick={() => deleteNote(n.id)}>✕</button>
+              </li>
+            ))}
+            {!video.notes.length && <li className="muted">No notes yet. Press <kbd>n</kbd> or tap the box above while watching.</li>}
+          </ul>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function AiPanel({ video, now, seek, onNotes }: { video: Video; now: () => number; seek: (t: number) => void; onNotes: (n: AiNotes) => void }) {
+  const [needPaste, setNeedPaste] = useState(false)
+  const [pasted, setPasted] = useState('')
+  const [quiz, setQuiz] = useState<{ window: string; items: Item[] } | null>(null)
+  const [results, setResults] = useState<Record<string, Grade>>({})
+  const [added, setAdded] = useState<Set<number>>(new Set())
+  const action = useAction()
+
+  /** Make sure a transcript exists: automatic fetch first, pasted text as the fallback. */
+  async function ensureTranscript(text?: string) {
+    if (video.has_transcript && !text) return true
+    const r = await api<{ available: boolean }>(`/videos/${video.id}/transcript`, { body: text ? { text } : {} })
+    if (!r.available) setNeedPaste(true)
+    else { video.has_transcript = true; setNeedPaste(false) }
+    return r.available
+  }
+
+  const makeNotes = (text?: string) => action.run(async () => {
+    const ok = await ensureTranscript(text)
+    // Without a transcript the notes are based on the learner's own notes; the server rejects if there are none.
+    if (!ok && !video.notes.length) return
+    onNotes(await api<AiNotes>(`/videos/${video.id}/ai-notes`, { body: {} }))
+  })
+
+  const quizMe = () => action.run(async () => {
+    const to = Math.max(now(), 60)
+    const from = Math.max(0, to - 600)
+    await ensureTranscript()
+    const r = await api<{ questions: Omit<Item, 'id'>[] }>(`/videos/${video.id}/quiz`, { body: { from, to } })
+    setResults({})
+    setQuiz({
+      window: `${fmtTime(from)}–${fmtTime(to)}`,
+      items: r.questions.map((q, i) => ({ ...q, id: `vq${Date.now()}${i}`, competency_id: video.competency_id })),
+    })
+  })
+
+  const addToReviews = (i: number, q: Omit<Item, 'id'>) => action.run(async () => {
+    await api('/reviews', { body: { mission_id: video.mission_id, competency_id: video.competency_id, prompt: q.prompt, expected: q.expected, source: 'video' } })
+    setAdded(s => new Set(s).add(i))
+  })
+
+  const ai = video.ai_notes
+  return (
+    <Card title="Learn from this video" actions={
+      <>
+        <button className="secondary small" disabled={action.busy || !video.mission_id} title={video.mission_id ? '' : 'Link a mission first'} onClick={quizMe}>Quiz me on last 10 min</button>
+        <button className="ghost small" disabled={action.busy} onClick={() => makeNotes()}>{ai ? 'Regenerate AI notes' : 'Transcript → notes'}</button>
+      </>
+    }>
+      {!video.mission_id && <p className="muted small-text">Link this video to a mission to get graded quizzes and review items.</p>}
+      {action.busy && <Spinner label="Working…" />}
+      <ErrorBanner error={action.error} />
+
+      {needPaste && (
+        <div className="banner warn">
+          <p>YouTube didn't return captions automatically{video.notes.length ? ', so the notes above are based on your own notes' : ''}. To use the transcript: on YouTube open <b>⋯ → Show transcript</b>, select all the lines, copy, and paste here.</p>
+          <textarea rows={4} value={pasted} onChange={e => setPasted(e.target.value)} placeholder="0:00 Intro…" />
+          <button className="primary small" disabled={!pasted.trim() || action.busy} onClick={() => makeNotes(pasted)}>Use pasted transcript</button>
+        </div>
+      )}
+
+      {quiz && (
+        <div className="quiz">
+          <h3>Quiz · {quiz.window}</h3>
+          {quiz.items.map((it, i) => (
+            <AnswerBox key={it.id} item={it} index={i} missionId={video.mission_id!} stage="video" result={results[it.id]}
+              onGraded={g => setResults(r => ({ ...r, [it.id]: g }))} />
+          ))}
+        </div>
+      )}
+
+      {ai && (
+        <div className="ai-notes">
+          <p>{ai.summary}</p>
+          <h3>Key concepts</h3>
+          <ul className="notes">
+            {ai.concepts.map((c, i) => (
+              <li key={i}>
+                <button className="stamp" onClick={() => seek(c.t)}>{fmtTime(c.t)}</button>
+                <span><strong>{c.name}</strong> · {c.note}</span>
+              </li>
+            ))}
+          </ul>
+          <h3>Questions worth keeping</h3>
+          <ul className="list">
+            {ai.questions.map((q, i) => (
+              <li key={i}>
+                <div><Chip>{q.type}</Chip> {q.prompt}</div>
+                {video.mission_id && (added.has(i)
+                  ? <Chip tone="good">in reviews</Chip>
+                  : <button className="ghost small" disabled={action.busy} onClick={() => addToReviews(i, q)}>+ Review</button>)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Card>
+  )
+}

@@ -1,0 +1,18 @@
+{
+  "id": "attention",
+  "mission_id": "production-llm-engineering",
+  "competency_id": "production-llm-engineering/transformers",
+  "title": "Attention Is All You Need",
+  "url": "https://arxiv.org/abs/1706.03762",
+  "type": "paper",
+  "level": "intermediate",
+  "official": true,
+  "hands_on": false,
+  "reason": "Included because it is the primary source for the Transformer architecture and derives scaled dot-product attention.",
+  "supports": [
+    "concept"
+  ],
+  "source": "seed",
+  "status": "accepted",
+  "last_verified": "2026-09-28"
+}

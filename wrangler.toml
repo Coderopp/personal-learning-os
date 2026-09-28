@@ -1,0 +1,16 @@
+name = "learning-os"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "./dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "learning-os"
+database_id = "local-dev-placeholder" # replaced by `wrangler d1 create learning-os` — see docs/SETUP.md
+migrations_dir = "migrations"
+
+[vars]
+GITHUB_REPO = "Coderopp/personal-learning-os"
+GITHUB_BRANCH = "main"
+LLM_LARGE = "openai/gpt-oss-120b"
+LLM_FAST = "openai/gpt-oss-20b"

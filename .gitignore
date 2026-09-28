@@ -3,3 +3,6 @@ dist
 .env
 .env.*
 .DS_Store
+.dev.vars
+.wrangler
+server/prompts.gen.ts

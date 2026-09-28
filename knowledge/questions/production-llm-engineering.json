@@ -1,0 +1,42 @@
+[
+  {
+    "id": "q1",
+    "mission_id": "production-llm-engineering",
+    "competency_id": "production-llm-engineering/transformers",
+    "type": "derivation",
+    "difficulty": 3,
+    "prompt": "Derive why scaled dot-product attention divides QKᵀ by √dₖ. What instability is the scaling intended to reduce?",
+    "expected": "Relate dot-product variance to dₖ and explain how large logits can saturate softmax gradients.",
+    "misconceptions": []
+  },
+  {
+    "id": "q2",
+    "mission_id": "production-llm-engineering",
+    "competency_id": "production-llm-engineering/retrieval",
+    "type": "diagnosis",
+    "difficulty": 4,
+    "prompt": "A RAG system answers easy questions well but fails on obscure facts buried deep in long documents. What should you inspect before changing the LLM?",
+    "expected": "Check retrieval recall, chunking, query formulation, top-k, reranking and whether the evidence enters context.",
+    "misconceptions": []
+  },
+  {
+    "id": "q3",
+    "mission_id": "production-llm-engineering",
+    "competency_id": "production-llm-engineering/evaluation",
+    "type": "design",
+    "difficulty": 5,
+    "prompt": "Design an evaluation set that separates retrieval failures from generation failures in a RAG system.",
+    "expected": "Use known evidence and retrieval-level labels or metrics, then score generation conditional on evidence being retrieved.",
+    "misconceptions": []
+  },
+  {
+    "id": "q4",
+    "mission_id": "production-llm-engineering",
+    "competency_id": "production-llm-engineering/inference",
+    "type": "transfer",
+    "difficulty": 5,
+    "prompt": "Sequence length doubles while model weights stay fixed. Predict major inference memory and latency effects and explain the role of KV caching.",
+    "expected": "Reason separately about attention compute, cache growth and weight memory.",
+    "misconceptions": []
+  }
+]

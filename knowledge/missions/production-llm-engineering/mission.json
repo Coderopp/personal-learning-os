@@ -1,0 +1,91 @@
+{
+  "id": "production-llm-engineering",
+  "title": "Production LLM Engineering",
+  "goal": "Build, evaluate, optimize and ship reliable LLM systems.",
+  "mode": "mastery",
+  "role": "primary",
+  "level": "intermediate",
+  "target": 85,
+  "excellence": [
+    {
+      "name": "Independent build",
+      "description": "Ship an end-to-end LLM system on an unfamiliar dataset without tutorial-driven implementation."
+    },
+    {
+      "name": "Evaluation",
+      "description": "Separate retrieval, generation and system-level failure modes with held-out tests."
+    },
+    {
+      "name": "Transfer",
+      "description": "Solve novel architecture and debugging problems without pattern matching to a known solution."
+    }
+  ],
+  "competencies": [
+    {
+      "id": "production-llm-engineering/foundations",
+      "name": "Foundations",
+      "description": "Probability, linear algebra, optimization and neural-network basics that everything else rests on.",
+      "prerequisites": []
+    },
+    {
+      "id": "production-llm-engineering/transformers",
+      "name": "Transformers",
+      "description": "Attention, positional encoding, MHA/MQA/GQA and why the architecture behaves as it does.",
+      "prerequisites": [
+        "production-llm-engineering/foundations"
+      ]
+    },
+    {
+      "id": "production-llm-engineering/embeddings",
+      "name": "Embeddings",
+      "description": "How embedding models represent meaning, similarity metrics, and their failure modes.",
+      "prerequisites": [
+        "production-llm-engineering/foundations"
+      ]
+    },
+    {
+      "id": "production-llm-engineering/retrieval",
+      "name": "Retrieval & RAG",
+      "description": "Chunking, indexing, hybrid search, reranking and getting evidence into context.",
+      "prerequisites": [
+        "production-llm-engineering/transformers",
+        "production-llm-engineering/embeddings"
+      ]
+    },
+    {
+      "id": "production-llm-engineering/evaluation",
+      "name": "LLM Evaluation",
+      "description": "Separating retrieval, generation and system failures with held-out, measurable tests.",
+      "prerequisites": [
+        "production-llm-engineering/retrieval"
+      ]
+    },
+    {
+      "id": "production-llm-engineering/inference",
+      "name": "Inference & Optimization",
+      "description": "KV cache, batching, quantization, speculative decoding and memory/latency trade-offs.",
+      "prerequisites": [
+        "production-llm-engineering/transformers"
+      ]
+    },
+    {
+      "id": "production-llm-engineering/agents",
+      "name": "Agents & Tool Use",
+      "description": "Tool use, planning loops, and making agent behaviour observable and testable.",
+      "prerequisites": [
+        "production-llm-engineering/evaluation"
+      ]
+    },
+    {
+      "id": "production-llm-engineering/production",
+      "name": "Production Systems",
+      "description": "Deploying, observing and operating LLM systems under cost, latency and reliability constraints.",
+      "prerequisites": [
+        "production-llm-engineering/evaluation",
+        "production-llm-engineering/inference",
+        "production-llm-engineering/agents"
+      ]
+    }
+  ],
+  "milestones": []
+}
