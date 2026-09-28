@@ -54,7 +54,6 @@ missions.post('/missions/plan', async c => {
     prompt: 'planner',
     schema: SCHEMAS.plan,
     input: { topic: body.topic, mode, level: body.level, hours_per_week: body.hours_per_week, notes: body.notes ?? '' },
-    maxTokens: 6000,
   })
 
   let id = slugify(plan.title)
@@ -100,7 +99,7 @@ missions.post('/missions/:id/gather', async c => {
   const existing = await all<{ url: string; title: string }>(c.env,
     `SELECT url, title FROM resources WHERE mission_id = ? AND status != 'rejected'`, missionId)
   const known = new Set(existing.map(r => r.url))
-  const hits = (await gather(c.env, web, yt, body.kind)).filter(h => !known.has(h.url)).slice(0, 18)
+  const hits = (await gather(c.env, web, yt, body.kind)).filter(h => !known.has(h.url)).slice(0, 12)
   if (!hits.length) return c.json({ added: 0, searched: 0 })
 
   const { picks } = await llm<{ picks: { index: number; type: string; level: string; est_minutes: number; official: boolean; hands_on: boolean; supports: string[]; reason: string }[] }>(c.env, {
@@ -110,11 +109,11 @@ missions.post('/missions/:id/gather', async c => {
       mission: mission?.title, learner_level: mission?.level,
       competency: { name: comp.name, description: comp.description },
       results: hits.map((h, index) => ({
-        index, title: h.title, url: h.url, snippet: h.snippet, source: h.source,
+        index, title: h.title, url: h.url, snippet: h.snippet.slice(0, 220), source: h.source,
         ...(h.source === 'youtube' && { channel: h.author, duration_s: h.duration_s, views: h.views, published: h.published }),
       })),
       ...(body.kind === 'video' && { note: 'Video-only search: pick the best 1-3 videos, or none if all are weak.' }),
-      already_in_library: existing.slice(0, 60).map(r => r.title),
+      already_in_library: existing.slice(0, 40).map(r => r.title.slice(0, 80)),
     },
   })
 

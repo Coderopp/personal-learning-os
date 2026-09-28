@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, enc } from '../lib/api'
+import { api, ApiError, enc } from '../lib/api'
 import type { MissionDetail, Mode } from '../lib/types'
 import { Card, ErrorBanner } from '../components/ui'
 
@@ -42,22 +42,27 @@ export default function NewMission() {
         ...plan.search_plan.map(q => ({ label: `Searching & curating: ${names[q.competency_id] ?? q.competency_id}`, state: 'pending' as const })),
       ])
 
-      // Two competencies at a time keeps within Groq's per-minute limits while still feeling quick.
-      let next = 0
-      const worker = async () => {
-        while (next < plan.search_plan.length) {
-          const i = next++
-          const q = plan.search_plan[i]
-          update(i + 1, { state: 'running' })
+      // One competency at a time: Groq's free tier allows ~8k tokens/minute per model.
+      // The server absorbs short rate limits; if Groq is still busy, wait once more and retry.
+      for (const [i, q] of plan.search_plan.entries()) {
+        update(i + 1, { state: 'running' })
+        for (let attempt = 0; ; attempt++) {
           try {
             const r = await api<{ added: number; searched: number }>(`/missions/${plan.mission_id}/gather`, { body: q })
             update(i + 1, { state: 'done', detail: `${r.added} picked from ${r.searched} results` })
+            break
           } catch (e) {
-            update(i + 1, { state: 'failed', detail: (e as Error).message })
+            const busy = e instanceof ApiError && e.status === 429
+            if (busy && attempt === 0) {
+              update(i + 1, { detail: 'Groq is busy, retrying in 20s…' })
+              await new Promise(r => setTimeout(r, 20_000))
+              continue
+            }
+            update(i + 1, { state: 'failed', detail: `${(e as Error).message} Use "Find more" on this skill later.` })
+            break
           }
         }
       }
-      await Promise.all([worker(), worker()])
       navigate(`/missions/${enc(plan.mission_id)}?review=1`)
     } catch (e) {
       setError((e as Error).message)

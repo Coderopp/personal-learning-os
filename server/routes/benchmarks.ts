@@ -44,7 +44,6 @@ async function ensurePool(env: Env, comp: { id: string; name: string; descriptio
       previous_tasks: previous.map(p => p.prompt),
       practice_questions: practice.map(p => p.prompt),
     },
-    maxTokens: 5000,
   })
   await env.DB.batch(out.tasks.slice(0, 3).map(t => env.DB.prepare(
     `INSERT INTO questions (id, mission_id, competency_id, type, difficulty, prompt, expected, rubric, source, bank)

@@ -76,11 +76,15 @@ export function parsePastedTranscript(text: string): Line[] {
   return lines.filter(l => l.text)
 }
 
-/** Compact "[mm:ss] text" form, capped so it fits the fast model's context comfortably. */
-export function transcriptToText(lines: Line[], from = 0, to = Infinity, maxChars = 60_000) {
-  const out = lines
-    .filter(l => l.t >= from && l.t <= to)
-    .map(l => `[${Math.floor(l.t / 60)}:${String(Math.floor(l.t % 60)).padStart(2, '0')}] ${l.text}`)
-    .join('\n')
-  return out.length > maxChars ? `${out.slice(0, maxChars)}\n[transcript truncated]` : out
+/**
+ * Compact "[mm:ss] text" form. Long transcripts are sampled evenly across the whole video (not cut off at the start)
+ * so the result fits Groq's free-tier per-minute budget.
+ */
+export function transcriptToText(lines: Line[], from = 0, to = Infinity, maxChars = 14_000) {
+  const fmt = (l: Line) => `[${Math.floor(l.t / 60)}:${String(Math.floor(l.t % 60)).padStart(2, '0')}] ${l.text}`
+  const all = lines.filter(l => l.t >= from && l.t <= to).map(fmt)
+  const total = all.reduce((n, l) => n + l.length + 1, 0)
+  if (total <= maxChars) return all.join('\n')
+  const keepEvery = Math.ceil(total / maxChars)
+  return `${all.filter((_, i) => i % keepEvery === 0).join('\n')}\n[long transcript: every ${keepEvery}th line shown]`
 }
