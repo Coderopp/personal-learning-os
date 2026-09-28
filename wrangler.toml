@@ -1,5 +1,5 @@
 # Cloudflare Worker with static assets: the React app is served from ./dist, /api/* runs server/worker.ts.
-name = "learning-os"
+name = "personal-learning-os"
 main = "server/worker.ts"
 compatibility_date = "2026-05-01"
 compatibility_flags = ["nodejs_compat"]
@@ -12,7 +12,7 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "learning-os"
-database_id = "b34bec87-456e-4564-935d-445d6cb0fc7e"
+database_id = "4868cae5-9b73-419d-a5f5-8191f2795d3b"
 migrations_dir = "migrations"
 
 [vars]
