@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api, useAction, useApi } from '../lib/api'
 import type { Competency, Mission, Session } from '../lib/types'
 import { Card, Chip, Empty, ErrorBanner, Metric, Score, Spinner } from '../components/ui'
+import { ActivityCard, type Activity, StreakTiles } from '../components/Activity'
 
 interface Dash {
   mission: Mission | null
@@ -41,6 +42,7 @@ export function useStartSession() {
 
 export default function Dashboard() {
   const { data, error, loading, reload } = useApi<Dash>('/dashboard')
+  const activity = useApi<Activity>('/activity?days=182')
   const session = useStartSession()
 
   if (loading && !data) return <div className="page"><Spinner label="Loading your mission…" /></div>
@@ -132,6 +134,13 @@ export default function Dashboard() {
           )}
         </div>
       </section>
+
+      {activity.data && (
+        <div className="activity-row">
+          <div className="streak-tiles"><StreakTiles streak={activity.data.streak} /></div>
+          <ActivityCard activity={activity.data} title="Last 26 weeks" />
+        </div>
+      )}
 
       <div className="metrics">
         <Metric label="Focused this week" value={`${(data.weekly.minutes / 60).toFixed(1)} h`} note={`${data.weekly.sessions} session${data.weekly.sessions === 1 ? '' : 's'} · goal ${mission.hours_per_week} h`} />
