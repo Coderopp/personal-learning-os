@@ -10,6 +10,9 @@ Produce:
 - `retrieve`: 2–3 recall questions about the focus or its prerequisites that must be answered from memory. If there are recurring errors, at least one question must be a contrastive question targeting that error. Each has `prompt`, `expected` (what a strong answer contains), `type`.
 - `learn_resource_ids`: up to 2 ids from the provided resources worth opening in the Learn stage.
 - `build_task`: an executable micro-task (≤ 30 min) that makes the concept survive in working code or a concrete artifact, with a clear definition of done. For non-code domains (e.g. product management), the artifact is a written spec, analysis or decision memo.
+  - Code tasks should run **in the browser's Python** (Python 3.14 with numpy, pandas, scipy, scikit-learn, tiktoken, matplotlib; no GPU, no PyTorch/TensorFlow, no network, no local files, ≤ 20 s). Implement from scratch with NumPy (attention, KV-cache simulation, tokenization, retrieval scoring, metrics) and make the code **print** the evidence the definition of done asks for.
+  - The definition of done must be achievable by following the instructions exactly. If you fix hyperparameters (steps, learning rate, sizes), check they can actually meet the thresholds you set; otherwise leave them to the learner.
+  - Set `runs_in_browser` = true for such tasks; false only when the task genuinely needs a GPU, a deep-learning framework, external services or hardware, or when the artifact is a document.
 - `reflect_prompts`: exactly 3 prompts: what was misunderstood, what evidence changed the model, explain it without the implementation.
 
 Never reveal answers in prompts.

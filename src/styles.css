@@ -361,3 +361,12 @@ a.stamp { text-decoration: none; }
 .dim-bars .bar span.low { background: var(--bad); }
 .md-fallback { white-space: pre-wrap; margin: 0; }
 details summary { cursor: pointer; margin: 6px 0; }
+
+/* ---------- phase 3: code runner ---------- */
+.runner { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 12px; }
+textarea.code { font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; font-size: 0.88rem; line-height: 1.5; tab-size: 4; white-space: pre; overflow-x: auto; min-height: 300px; background: var(--surface-2); }
+.output { border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-2); padding: 10px 12px; min-height: 300px; max-height: 480px; overflow: auto; }
+.output-head { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; }
+.output pre { margin: 0 0 8px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.85rem; white-space: pre-wrap; word-break: break-word; }
+.output pre.stderr { color: var(--bad); }
+@media (max-width: 900px) { .runner { grid-template-columns: 1fr; } textarea.code, .output { min-height: 200px; } }
