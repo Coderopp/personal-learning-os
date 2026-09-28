@@ -14,6 +14,7 @@ const VideoPlayer = lazy(() => import('./pages/VideoPlayer'))
 const SessionPage = lazy(() => import('./pages/Session'))
 const Benchmark = lazy(() => import('./pages/Benchmark'))
 const Errors = lazy(() => import('./pages/Errors'))
+const Analytics = lazy(() => import('./pages/Analytics'))
 const Settings = lazy(() => import('./pages/Settings'))
 
 const NAV = [
@@ -22,6 +23,7 @@ const NAV = [
   { to: '/library', label: 'Library', icon: '▤' },
   { to: '/videos', label: 'Videos', icon: '▶' },
   { to: '/errors', label: 'Error Lab', icon: '✕' },
+  { to: '/analytics', label: 'Analytics', icon: '▦' },
   { to: '/settings', label: 'System', icon: '⚙' },
 ]
 
@@ -67,6 +69,7 @@ export default function App() {
           <Route path="/session/:id" element={<SessionPage />} />
           <Route path="/benchmark/:id" element={<Benchmark />} />
           <Route path="/errors" element={<Errors />} />
+          <Route path="/analytics" element={<Analytics />} />
           <Route path="/settings" element={<Settings status={status.data} />} />
           <Route path="*" element={<div className="page"><h1>Not found</h1></div>} />
         </Routes>

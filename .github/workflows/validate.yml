@@ -16,4 +16,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run validate   # knowledge/ matches schemas, prerequisite graphs are acyclic
+      - run: npm test           # domain rules (streaks)
       - run: npm run build      # typecheck app + server, bundle
