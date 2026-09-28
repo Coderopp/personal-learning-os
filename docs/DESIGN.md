@@ -549,3 +549,11 @@ Embeddings (when keyword search misses), adaptive spaced-review scheduling (> 50
 | 2 | `server/routes/analytics.ts` (incl. daily activity + streak); `src/pages/Analytics.tsx`, `src/components/charts/*` (incl. `Heatmap.tsx`); compact heatmap on Dashboard; nav entry |
 | 3 | `public/sw.js`, `src/lib/push.ts`, `server/push.ts` (VAPID + aes128gcm), `server/routes/push.ts`, `scheduled` handler dispatch by cron; `wrangler.toml` crons; Settings UI; migration `push_subscriptions` |
 | 4 | `prompts/concept-tagger.md`, `server/routes/graph.ts`, `src/pages/Graph.tsx`; competency panel "Also in"; migration `concepts`, `competency_concepts` |
+
+### Phase 3 implementation notes (2026-09-29)
+
+- **Code runner:** Pyodide `314.0.7` (Python 3.14) from jsDelivr in a module Web Worker; the first run downloaded and executed in ~5 s. Package-loader messages are kept out of stdout, and tracebacks are trimmed to start at the learner's code. The coach must set *achievable* definitions of done: the first generated task was impossible with its own fixed hyperparameters.
+- **Analytics:** the heatmap uses a 4-step ordinal blue ramp validated with the dataviz script against the app's surfaces: light #fff (steps 250→650) and dark #111318 (steps 600→200, more = brighter). The streak rules live in `server/routes/analytics.ts` and are covered by `tests/streaks.test.mjs` (CI). Recovery latency ignores the empty stretch before the first learning day.
+- **Reminders:** encryption was verified against `http_ece` and delivered through real FCM from headless Chrome. The VAPID subject is the repo URL, so no personal email goes to push services. Cron dispatch is by expression in `server/worker.ts`.
+- **Groq free tier (found while setting up missions):** 8k tokens/minute per model, counting the requested max output. One budget table in `server/llm.ts` clamps every call; New Mission researches one competency at a time.
+- **Connections:** one tagger call per mission reuses the existing concept vocabulary, which is what creates the links. Links that skip a column are routed through gutters and bottom lanes, so they never pass behind another mission's nodes.

@@ -16,6 +16,7 @@ const Benchmark = lazy(() => import('./pages/Benchmark'))
 const Errors = lazy(() => import('./pages/Errors'))
 const Analytics = lazy(() => import('./pages/Analytics'))
 const StartReview = lazy(() => import('./pages/StartReview'))
+const Graph = lazy(() => import('./pages/Graph'))
 const Settings = lazy(() => import('./pages/Settings'))
 
 const NAV = [
@@ -72,6 +73,7 @@ export default function App() {
           <Route path="/errors" element={<Errors />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/start-review" element={<StartReview />} />
+          <Route path="/connections" element={<Graph />} />
           <Route path="/settings" element={<Settings status={status.data} />} />
           <Route path="*" element={<div className="page"><h1>Not found</h1></div>} />
         </Routes>

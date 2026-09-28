@@ -26,6 +26,8 @@ const BUDGET: Record<PromptName, { tier: Tier; max: number }> = {
   'question-generator': { tier: 'fast', max: 1500 },
   reflection: { tier: 'fast', max: 1200 },
   'video-notes': { tier: 'fast', max: 2500 },
+  // Merging synonyms into the existing vocabulary is judgment-heavy.
+  'concept-tagger': { tier: 'large', max: 2500 },
 }
 const estimateTokens = (text: string) => Math.ceil(text.length / 3.5)
 
@@ -210,6 +212,9 @@ export const SCHEMAS = {
       expected: str,
       rubric: obj({ concept: str, implementation: str, reasoning: str, transfer: str }),
     })),
+  }),
+  conceptTags: obj({
+    tags: arr(obj({ competency_id: str, concepts: arr(obj({ slug: str, name: str })) })),
   }),
   benchmarkGrade: obj({ concept: num, implementation: num, reasoning: num, transfer: num, feedback: str }),
 } satisfies Record<string, JsonSchema>

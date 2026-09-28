@@ -9,3 +9,5 @@ Question types: recall, explanation, derivation, prediction, diagnosis, debuggin
 Return `type`, `difficulty`, `prompt` (self-contained, answerable in ≤ 10 minutes of writing), `expected` (the reasoning a strong answer contains, 1–4 sentences) and `misconceptions` (1–3 likely wrong ideas).
 
 Practice generation and held-out mastery evaluation are separate. These are practice questions only.
+
+If `linked_competencies` are provided (the same concepts in the learner's OTHER missions), and the requested difficulty is ≥ 4, prefer a **transfer** question that applies this competency to that other context (e.g. structured-output validation for a drone command parser). Name the context explicitly in the prompt.
