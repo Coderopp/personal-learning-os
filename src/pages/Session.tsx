@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, useAction, useApi } from '../lib/api'
-import type { Grade, Item, Resource, Session } from '../lib/types'
+import type { Grade, Item, Moment, Resource, Session } from '../lib/types'
+import { MomentList } from './Videos'
 import { Card, Chip, Empty, ErrorBanner, Spinner, verdictTone } from '../components/ui'
 import { AnswerBox } from '../components/AnswerBox'
 import { AskTutor } from '../components/AskTutor'
@@ -178,14 +179,15 @@ function MasteryStage({ session, stage, results, setResult, patch, go, reload }:
 
 function LearnStage({ session, focus, patch, onNext }: { session: Session; focus: { id: string; name: string }; patch: StageProps['patch']; onNext: () => void }) {
   const learn = session.state.learn as string | undefined
+  const moments = (session.state.learn_videos ?? []) as Moment[]
   const action = useAction()
   const resources = useApi<Resource[]>(`/resources?competency=${encodeURIComponent(focus.id)}&status=accepted`)
   const picked = (session.state.learn_resource_ids ?? []) as string[]
   const shown = (resources.data ?? []).sort((a, b) => Number(picked.includes(b.id)) - Number(picked.includes(a.id))).slice(0, 4)
 
   const explain = () => action.run(async () => {
-    const r = await api<{ markdown: string }>(`/sessions/${session.id}/learn`, { body: {} })
-    patch({ learn: r.markdown })
+    const r = await api<{ markdown: string; moments: Moment[] }>(`/sessions/${session.id}/learn`, { body: {} })
+    patch({ learn: r.markdown, learn_videos: r.moments })
   })
   // Generate the targeted explanation on arrival.
   useEffect(() => { if (!learn && !action.busy) explain() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -197,6 +199,11 @@ function LearnStage({ session, focus, patch, onNext }: { session: Session; focus
         <ErrorBanner error={action.error} onRetry={explain} />
         {learn && <Md>{learn}</Md>}
       </Card>
+      {moments.length > 0 && (
+        <Card title="Watch the exact moment" subtitle="Where your saved videos explain this gap.">
+          <MomentList moments={moments} />
+        </Card>
+      )}
       {shown.length > 0 && (
         <Card title="Go to the source" subtitle="Read only the section that covers the gap.">
           <ul className="list">

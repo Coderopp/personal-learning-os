@@ -136,3 +136,52 @@ export async function rescheduleReview(env: Env, reviewId: string, correct: bool
   }
   return { rung, next_in_days: LADDER[rung] }
 }
+
+export interface BenchmarkStatus {
+  competency_id: string
+  name: string
+  score: number | null
+  last_run: string | null
+  runs: number
+  practice7: { n: number; avg: number | null }
+  due: boolean
+  reason: string
+}
+
+/**
+ * When is a benchmark worth running? Practice ≥ 85 over ≥ 5 attempts in the last 7 days (ready to prove it),
+ * or ≥ 21 days since the last run with practice since (check retention of capability).
+ */
+export async function benchmarkStatus(env: Env, missionId: string): Promise<BenchmarkStatus[]> {
+  const comps = await competenciesOf(env, missionId)
+  const [runs, practice, since] = await Promise.all([
+    all<{ competency_id: string; n: number; last: string }>(env,
+      `SELECT competency_id, COUNT(*) AS n, MAX(submitted_at) AS last FROM benchmark_runs
+       WHERE mission_id = ? AND submitted_at IS NOT NULL GROUP BY competency_id`, missionId),
+    all<{ competency_id: string; n: number; avg: number }>(env,
+      `SELECT competency_id, COUNT(*) AS n, AVG(score) AS avg FROM attempts
+       WHERE mission_id = ? AND created_at > datetime('now', '-7 days') AND stage IN ('retrieve', 'practice', 'review', 'build', 'recall')
+       GROUP BY competency_id`, missionId),
+    all<{ competency_id: string; n: number }>(env,
+      `SELECT a.competency_id, COUNT(*) AS n FROM attempts a
+       WHERE a.mission_id = ? AND a.created_at > COALESCE(
+         (SELECT MAX(submitted_at) FROM benchmark_runs b WHERE b.competency_id = a.competency_id AND b.submitted_at IS NOT NULL), '0')
+       GROUP BY a.competency_id`, missionId),
+  ])
+  const byComp = <T extends { competency_id: string }>(rows: T[]) => new Map(rows.map(r => [r.competency_id, r]))
+  const runMap = byComp(runs), pracMap = byComp(practice), sinceMap = byComp(since)
+
+  return comps.map(c => {
+    const r = runMap.get(c.id)
+    const p = pracMap.get(c.id)
+    const daysSince = r ? (Date.now() - Date.parse(`${r.last.replace(' ', 'T')}Z`)) / 86_400_000 : null
+    let due = false
+    let reason = ''
+    if (p && p.n >= 5 && p.avg >= 85) { due = true; reason = `practice ${Math.round(p.avg)} over ${p.n} attempts this week` }
+    else if (daysSince != null && daysSince >= 21 && (sinceMap.get(c.id)?.n ?? 0) > 0) { due = true; reason = `${Math.floor(daysSince)} days since last benchmark` }
+    return {
+      competency_id: c.id, name: c.name, score: c.benchmark_score, last_run: r?.last ?? null, runs: r?.n ?? 0,
+      practice7: { n: p?.n ?? 0, avg: p ? Math.round(p.avg) : null }, due, reason,
+    }
+  })
+}

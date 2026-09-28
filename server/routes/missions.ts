@@ -89,18 +89,18 @@ missions.post('/missions/plan', async c => {
 /** Step 2 of the agent, called once per competency: real search → curator picks → review-queue candidates. */
 missions.post('/missions/:id/gather', async c => {
   const missionId = c.req.param('id')
-  const body = await c.req.json<{ competency_id: string; web?: string[]; youtube?: string }>()
+  const body = await c.req.json<{ competency_id: string; web?: string[]; youtube?: string; kind?: 'video' }>()
   const comp = await first<{ id: string; name: string; description: string }>(c.env,
     'SELECT id, name, description FROM competencies WHERE id = ? AND mission_id = ?', body.competency_id, missionId)
   if (!comp) throw new UserFacingError('Competency not found', 404)
   const mission = await first<{ title: string; level: string }>(c.env, 'SELECT title, level FROM missions WHERE id = ?', missionId)
 
   const web = body.web?.length ? body.web : [`${comp.name} ${mission?.title ?? ''}`.trim()]
-  const yt = body.youtube ?? `${comp.name} lecture`
+  const yt = body.youtube ?? `${comp.name} ${body.kind === 'video' ? 'lecture explained' : 'lecture'}`
   const existing = await all<{ url: string; title: string }>(c.env,
     `SELECT url, title FROM resources WHERE mission_id = ? AND status != 'rejected'`, missionId)
   const known = new Set(existing.map(r => r.url))
-  const hits = (await gather(c.env, web, yt)).filter(h => !known.has(h.url)).slice(0, 18)
+  const hits = (await gather(c.env, web, yt, body.kind)).filter(h => !known.has(h.url)).slice(0, 18)
   if (!hits.length) return c.json({ added: 0, searched: 0 })
 
   const { picks } = await llm<{ picks: { index: number; type: string; level: string; est_minutes: number; official: boolean; hands_on: boolean; supports: string[]; reason: string }[] }>(c.env, {
@@ -109,20 +109,30 @@ missions.post('/missions/:id/gather', async c => {
     input: {
       mission: mission?.title, learner_level: mission?.level,
       competency: { name: comp.name, description: comp.description },
-      results: hits.map((h, index) => ({ index, title: h.title, url: h.url, snippet: h.snippet, source: h.source })),
+      results: hits.map((h, index) => ({
+        index, title: h.title, url: h.url, snippet: h.snippet, source: h.source,
+        ...(h.source === 'youtube' && { channel: h.author, duration_s: h.duration_s, views: h.views, published: h.published }),
+      })),
+      ...(body.kind === 'video' && { note: 'Video-only search: pick the best 1-3 videos, or none if all are weak.' }),
       already_in_library: existing.slice(0, 60).map(r => r.title),
     },
   })
 
-  const chosen = picks.filter(p => hits[p.index]).slice(0, 5)
+  // Enforce the curator's video cap in code too: ≤ 2 per competency (≤ 3 on an explicit video search).
+  const videoCap = body.kind === 'video' ? 3 : 2
+  let videos = 0
+  const chosen = picks.filter(p => hits[p.index]).filter(p => hits[p.index].source !== 'youtube' || ++videos <= videoCap).slice(0, 5)
+  // The curator may reasonably reject everything; D1 rejects an empty batch.
+  if (!chosen.length) return c.json({ added: 0, searched: hits.length })
   await c.env.DB.batch(chosen.map(p => {
     const h: Hit = hits[p.index]
     return c.env.DB.prepare(
-      `INSERT OR IGNORE INTO resources (id, mission_id, competency_id, title, url, type, level, est_minutes, official, hands_on, reason, supports, source, author, snippet, last_verified)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(newId('res'), missionId, comp.id, h.title, h.url, h.source === 'youtube' ? 'video' : p.type, p.level, p.est_minutes,
+      `INSERT OR IGNORE INTO resources (id, mission_id, competency_id, title, url, type, level, est_minutes, official, hands_on, reason, supports, source, author, snippet, last_verified, duration_s, views, published)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(newId('res'), missionId, comp.id, h.title, h.url, h.source === 'youtube' ? 'video' : p.type, p.level,
+      h.duration_s ? Math.round(h.duration_s / 60) : p.est_minutes,
       p.official ? 1 : 0, p.hands_on ? 1 : 0, p.reason, JSON.stringify(p.supports), h.source, h.author ?? null, h.snippet,
-      nowIso().slice(0, 10))
+      nowIso().slice(0, 10), h.duration_s ?? null, h.views ?? null, h.published ?? null)
   }))
   return c.json({ added: chosen.length, searched: hits.length })
 })

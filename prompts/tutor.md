@@ -7,3 +7,5 @@ Two jobs, chosen by `task`:
 - `ask`: answer the learner's free-form question about the competency concisely, in Markdown, then suggest one retrieval question.
 
 Return `markdown`.
+
+When `video_excerpts` are provided (moments from the learner's saved videos, with `video_id`, `title`, `t` in seconds and the transcript text), use them when they genuinely answer the question and cite the moment as a Markdown link: `[Title @ m:ss](/videos/<video_id>?t=<seconds>)`. Never invent a video or timestamp that is not in `video_excerpts`.

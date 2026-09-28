@@ -64,6 +64,9 @@ export interface Resource {
   author: string | null
   status: 'candidate' | 'accepted' | 'deferred' | 'rejected' | 'deprecated'
   committed_sha: string | null
+  duration_s: number | null
+  views: number | null
+  published: string | null
 }
 
 export interface LearnError {
@@ -123,7 +126,21 @@ export interface Session {
 
 export interface Status {
   email: string
-  providers: { groq: boolean; web: boolean; youtube: boolean; arxiv: boolean; github: boolean; git: boolean }
+  providers: { groq: boolean; web: boolean; youtube: boolean; youtube_api: boolean; arxiv: boolean; github: boolean; git: boolean }
+  snapshot: { repo: string | null; configured: boolean; last: { at: string; committed: boolean; sha?: string; reason?: string; rows: number } | null }
   models: { large: string; fast: string }
   usage_today: { calls: number; tokens: number; rate_limited: number }
 }
+
+export interface BenchmarkStatus {
+  competency_id: string
+  name: string
+  score: number | null
+  last_run: string | null
+  runs: number
+  practice7: { n: number; avg: number | null }
+  due: boolean
+  reason: string
+}
+
+export interface Moment { video_id: string; title: string; channel: string | null; t: number; snippet: string }

@@ -335,3 +335,119 @@ Models (verified against Groq's model list on 2026-09-28): large `openai/gpt-oss
 **Focused minutes** count only while the session page is visible *and* the learner interacted in the last 3 minutes.
 
 Not in Phase 1 (unchanged): benchmark runs, Analytics page, nightly state snapshot, offline queue.
+
+---
+
+## 11. Phase 2 plan (approved 2026-09-28: A, B, C, E, F; D Analytics deferred)
+
+Goal: add the **truth layer** (benchmarks → real capability numbers), make **video a first-class source** the agent can find *and* search inside, and give the repo a **private long-term memory** of learner state.
+
+Order of work: **A → B → C → D → E**; each ships and deploys on its own.
+
+### A. Agent finds videos (no key needed)
+
+Today the agent only finds videos when `YOUTUBE_API_KEY` is set, and it isn't. Tested 2026-09-28: YouTube's own search endpoint (InnerTube) returns real results with duration, channel and views, keyless.
+
+- `youtubeSearch()` = official Data API when a key is set, otherwise keyless InnerTube search. **Verified from Cloudflare's edge 2026-09-28:** keyless search returned 21 videos and captions returned a full transcript. If YouTube starts blocking, the UI suggests a free `YOUTUBE_API_KEY`.
+- Every "Research & plan" and "Find more" includes a video search per competency. The curator now sees **duration, channel, views, published date** and picks **≤ 2 videos per competency**. It prefers lectures and talks from recognized educators and institutions and rejects < 3 min clips and clickbait.
+- New **Videos tab** on each competency: thumbnails with watch progress, candidates to approve/reject, and a **Find videos** button (video-only search).
+- **Videos page:** a "For your bottleneck" row of accepted, unwatched videos.
+- Approving a video fetches its transcript in the background (best effort), so it becomes searchable (B).
+
+```text
+┌ Foundations ─ Primer · Resources · [Videos] · Ask · Edit ───────────────┐
+│ [Find videos]                                                            │
+│ ▶ thumb  Backprop explained · 3Blue1Brown · 13:54 · 5.1M views   ■■■□ 70%│
+│ ▶ thumb  Gradient descent lecture · Stanford CS229 · 1:12:03   candidate │
+│          Included because … [Approve] [Reject]                           │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Writes:** `resources` (+ `duration_s`, `views`, `published` columns), `videos.transcript`.
+
+### B. Search *inside* videos
+
+- Transcripts are split into ~30 s segments and indexed with **SQLite FTS5** (D1 supports it). No embeddings. Bring those back when keyword search misses too often.
+- `GET /api/videos/search?q=` returns matching moments across all your saved videos. There's a search box on the Videos page, and **"Find in this video"** in the player; tapping a hit seeks to the timestamp.
+- **Learn stage:** after Recall exposes a gap, the gap terms are searched in your transcripts. If a saved video covers it, Learn shows **"Watch 12:04–15:30 of ‹video›"** as a deep link. No extra LLM call.
+- **Ask the agent about a video:** the tutor's `ask` gets the top matching transcript segments as context and answers with timestamps ("explained at 23:10").
+
+```text
+Videos   [ search your videos: "kv cache memory"            ]
+  12:04  Let's build GPT · Karpathy      "…the cache grows with sequence length…"
+  03:15  The KV Cache · Efficient NLP    "…memory usage is 2 × layers × …"
+```
+
+**Writes:** `transcript_segments` (FTS5 virtual table).
+
+### C. Benchmarks: the truth layer
+
+- New `prompts/examiner.md` generates **3 held-out tasks per competency** (concept, implementation/design, transfer), each with a 4-part rubric: concept · implementation · reasoning · transfer. They're generated on first benchmark request, stored in `questions` with `bank='benchmark'`, and **sealed**: never shown outside a run, never given to the practice generator, never committed to the public repo.
+- **Benchmark run** (`/benchmark/:id`): 2 unused tasks, a visible timer, **no hints, primer, tutor or resources**, and answers submitted together. Each task is scored on the 4 dimensions. Tasks are never reused, and fresh ones are generated as the pool empties.
+- **Capability:** latest benchmark per competency. Mission capability = the mean over **all** competencies, with unbenchmarked ones counting as 0, plus a coverage figure ("benchmarked 3/8"). This is deliberately strict: it measures *demonstrated* ability only.
+- **When to benchmark:** the dashboard suggests a run when practice on a competency is ≥ 85 over ≥ 5 attempts in 7 days, or 21 days have passed since the last run.
+- **Honest limit (unchanged):** tasks are LLM-authored. You can add your own real-world tasks, marked `source=own`.
+
+```text
+BENCHMARK · Inference & Optimization            ⏱ 18:42      no hints · no sources
+Task 1/2  (transfer)
+  A 7B model serves 32 concurrent users at 4k context on one 80 GB GPU…
+  [ your answer …                                                    ]
+                                                        [ Submit benchmark ]
+Result:  concept 80 · implementation 62 · reasoning 75 · transfer 58  →  69
+```
+
+**Writes:** `benchmark_runs` (new), `questions` (bank=benchmark, `used_at`), `competencies.benchmark_score`.
+
+### D. Analytics page (deferred: not in this phase)
+
+`GET /api/analytics?mission=`, drawn as hand-rolled SVG (no chart library), following the dataviz guidance. Every panel shows **"not enough data (n/need)"** until it can be computed honestly.
+
+| Panel | Source |
+|---|---|
+| Capability over time + coverage | `benchmark_runs` |
+| Per-competency: benchmark vs practice | `competencies` |
+| Recall-7 / Recall-30 (with n) | `review_log` |
+| Transfer | transfer rubric scores |
+| Error recurrence (30 d) | `errors` |
+| Focused hours / week (8 weeks) | `sessions` |
+| Reviews due, next 14 days | `reviews` |
+| Gain / hour and projected TTE | two or more benchmarks + focused hours |
+| Recovery latency | gaps of ≥ 3 inactive days |
+
+### E. Private memory snapshot
+
+- New **private** repo `Coderopp/learning-os-state`.
+- A **daily Worker cron** (02:00 IST) exports learner state (attempts, errors, reviews, review log, sessions, reflections, video notes, benchmark runs, sealed tasks) as JSON and writes it as **one commit** via the Git Data API. Git history is the versioning.
+- `scripts/import-state.mjs` rebuilds D1 from the snapshot, so D1 is disposable.
+- Needs a fine-grained token with `contents:write` on both repos (`GITHUB_TOKEN`).
+
+### F. Small fixes bundled in
+
+- **Code-split** routes and lazy-load KaTeX/Markdown: first load drops from ~234 kB gzip to ~110 kB (it matters on the tablet over mobile data).
+- **Draft safety:** unsent answers are kept in local storage, so a closed tab or dropped connection doesn't lose typing.
+
+### Deferred (with triggers)
+
+- **Full offline answer queue:** grading needs the server anyway. Bring it back if you study offline (flights, commutes).
+- **Embeddings / semantic video search:** when FTS keyword search misses too often.
+- **Knowledge graph across missions:** when two or more active missions share concepts.
+
+### Files
+
+| Area | Files |
+|---|---|
+| Migration | `migrations/0002_phase2.sql`: resources video columns, `transcript_segments` (FTS5), `benchmark_runs`, `questions.used_at`, `questions.rubric` |
+| Server | `server/search.ts` (InnerTube + Data API + metadata), `server/routes/videos.ts` (search, segments), `server/routes/benchmarks.ts` (new), `server/routes/analytics.ts` (new), `server/snapshot.ts` + `scheduled` handler in `server/worker.ts`, `server/routes/library.ts` (video-aware curation, tutor transcript context) |
+| Prompts | `examiner.md`, `benchmark-grader.md` (new); `curator.md` (video rules); `tutor.md` (timestamps) |
+| App | `pages/Benchmark.tsx`, `pages/Analytics.tsx`, `components/charts/*` (new); `MissionPage` Videos tab; `Videos` search + bottleneck row; `VideoPlayer` find-in-video; `Session` Learn deep links; `Dashboard` benchmark prompt and new capability definition; `App` lazy routes + Analytics nav |
+| Ops | `wrangler.toml` `[triggers] crons`; `scripts/import-state.mjs`; `docs/SETUP.md` (state repo, token) |
+
+### Phase 2 implementation notes (2026-09-28)
+
+- Keyless YouTube search and captions verified from Cloudflare's edge. Dedupe keys YouTube hits by video id: an earlier URL-path key collapsed every `watch?v=` link into one.
+- Transcript search drops stopwords before building the FTS5 query (AND first, OR fallback); otherwise questions like "why does…" matched filler.
+- Benchmark runs use 2 tasks (prefer transfer + one other) from a pool of 3 generated by the examiner; submitted *or abandoned* tasks are burned.
+- Restore is an upsert by primary key, so columns the snapshot omits (raw transcripts) survive a restore over an existing database.
+- Fixed a Phase 1 bug: when the curator rejected every result, an empty D1 batch crashed "Find more".
+- First-load bundle 234 kB → 88 kB gzip (lazy routes, Markdown/KaTeX loaded on first use).

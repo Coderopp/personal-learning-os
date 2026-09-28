@@ -13,7 +13,8 @@
     "db:migrate:remote": "wrangler d1 migrations apply learning-os --remote",
     "db:import": "node scripts/import-knowledge.mjs",
     "validate": "node scripts/validate-knowledge.mjs",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "db:restore-state": "node scripts/import-state.mjs"
   },
   "dependencies": {
     "hono": "^4.13.10",

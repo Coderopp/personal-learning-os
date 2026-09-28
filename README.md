@@ -13,8 +13,12 @@ The repo is the **memory**, Groq is the **execution layer**, the benchmark is th
 - **Session Runner.** Recall → Learn → Practice → Build → Diagnose → Reflect. Grading, calibrated difficulty, targeted explanations. Resumable across devices.
 - **Error Lab.** Every real misunderstanding is recorded with its root cause; recurring ones are injected into future sessions until resolved (3 correct answers across ≥ 7 days).
 - **Spaced retrieval.** D1 → D3 → D7 → D14 → D30 → D60 ladder, fed by wrong answers, reflections and videos.
-- **Video player.** YouTube with timestamped notes, transcript → notes, "quiz me on the last 10 minutes", position synced PC ↔ tablet.
-- **Honest metrics.** KPIs show "not enough data" until they're measured. Capability comes only from benchmarks (Phase 2); practice accuracy is labelled as such.
+- **Video agent.** Finds lectures and talks per competency (no API key needed) with duration, channel and views, and picks at most 2 per skill with a reason. Approved videos are transcribed and indexed.
+- **Search inside videos.** Keyword search across all saved transcripts. The Learn stage links to the exact moment that covers your gap, and the tutor cites `Title @ 12:04`.
+- **Video player.** YouTube with timestamped notes, find-in-video, transcript → notes, "quiz me on the last 10 minutes", position synced PC ↔ tablet.
+- **Benchmarks (truth layer).** Sealed, held-out tasks per competency, never shown in practice and never reused. Timed, no hints, graded on concept · implementation · reasoning · transfer. **Capability comes only from benchmarks**; unbenchmarked competencies count as 0, shown with coverage.
+- **Private memory.** Nightly backup of all learner state to a private GitHub repo; D1 can be rebuilt from it.
+- **Honest metrics.** KPIs show "not enough data" until they're measured; practice accuracy is labelled as practice.
 
 ## Stack
 
