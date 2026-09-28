@@ -6,7 +6,7 @@ pages_build_output_dir = "./dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "learning-os"
-database_id = "local-dev-placeholder" # replaced by `wrangler d1 create learning-os` — see docs/SETUP.md
+database_id = "b34bec87-456e-4564-935d-445d6cb0fc7e"
 migrations_dir = "migrations"
 
 [vars]
