@@ -12,7 +12,7 @@ const { streaks } = await import(out)
 // Days ending Wednesday 2026-09-30, oldest first: 1 = learning day, 0 = missed.
 const mk = (pattern, end = '2026-09-30') => [...pattern].map((ch, i, a) => ({
   date: new Date(Date.parse(`${end}T00:00:00Z`) - (a.length - 1 - i) * 86_400_000).toISOString().slice(0, 10),
-  minutes: 0, sessions: 0, reviews: 0, benchmarks: 0, active: ch === '1',
+  minutes: 0, sessions: 0, answers: 0, reviews: 0, benchmarks: 0, active: ch === '1',
 }))
 
 const cases = [

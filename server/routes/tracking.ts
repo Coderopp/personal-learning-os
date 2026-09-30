@@ -3,6 +3,7 @@ import { type AppEnv, UserFacingError } from '../env'
 import { all, first, parseJson, run } from '../db'
 import { searchProviders } from '../search'
 import { snapshot } from '../snapshot'
+import { activity } from './analytics'
 import { addReview, benchmarkStatus, competenciesOf, pickBottleneck, recurringErrorCounts } from '../learning'
 
 export const tracking = new Hono<AppEnv>()
@@ -46,8 +47,9 @@ tracking.get('/dashboard', async c => {
     FROM missions m WHERE m.status != 'archived' AND m.id != ? ORDER BY m.status = 'active' DESC, m.updated_at DESC`,
     mission?.id ?? '')
 
-  const weekly = await first<{ minutes: number; sessions: number }>(c.env,
-    `SELECT COALESCE(SUM(focused_minutes), 0) AS minutes, COUNT(*) AS sessions FROM sessions WHERE started_at > datetime('now', '-7 days')`)
+  // Same minutes as the heatmap: every learning screen, not only the Session page.
+  const week = await activity(c.env, 7)
+  const weekly = { minutes: week.reduce((m, d) => m + d.minutes, 0), sessions: week.reduce((n, d) => n + d.sessions, 0) }
   const totalDue = await first<{ n: number }>(c.env, `SELECT COUNT(*) AS n FROM reviews WHERE due_at <= datetime('now')`)
 
   if (!mission) return c.json({ mission: null, exploration, weekly, total_due: totalDue?.n ?? 0 })
