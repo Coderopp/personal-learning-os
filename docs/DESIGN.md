@@ -508,7 +508,7 @@ Fri ▢▢▣▣▢▢▢▣■▣▢▢▣■■▣▢▢▢▣■
 Tap a day → "Tue 24 Sep · 52 focused min · 1 session · 9 reviews · 1 benchmark"
 ```
 
-- **A learning day** means ≥ 10 focused minutes, *or* a completed review session, *or* a submitted benchmark. Opening the app doesn't count, so the streak rewards learning, not visits.
+- **A learning day** means ≥ 10 focused minutes on any learning screen (sessions, video player, benchmarks, mission workspace), *or* ≥ 3 graded answers (including video quizzes), *or* a completed review session, *or* a submitted benchmark. Opening the app or browsing Today/Analytics doesn't count, so the streak rewards learning, not visits. *(Fixed 2026-09-30: originally only Session-page time counted, so video study and quiz answers left days blank.)*
 - **The streak forgives one missed day per week.** At 5–15 h/week, a strict daily streak would break constantly and push you toward token 2-minute sessions. A second missed day in the same week ends the streak. Current and best streaks are both shown.
 - **Days are counted in IST (Asia/Kolkata)**, not UTC, so late-night study counts for the right day.
 

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { type AppEnv, type Env, UserFacingError } from '../env'
-import { all, first } from '../db'
+import { all, first, run } from '../db'
 import { competenciesOf } from '../learning'
 
 export const analytics = new Hono<AppEnv>()
@@ -13,17 +13,25 @@ const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) 
 /** Monday of the ISO week containing `d`. */
 const weekStart = (d: string) => addDays(d, -((new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7))
 
-export interface Day { date: string; minutes: number; sessions: number; reviews: number; benchmarks: number; active: boolean }
+export interface Day { date: string; minutes: number; sessions: number; answers: number; reviews: number; benchmarks: number; active: boolean }
 
-/** A learning day: ≥ 10 focused minutes, a completed review session, or a submitted benchmark. */
+/**
+ * A learning day: ≥ 10 focused minutes on any learning screen, ≥ 3 graded answers (session, review or video quiz),
+ * a completed review session, or a submitted benchmark.
+ */
 const MIN_MINUTES = 10
+const MIN_ANSWERS = 3
+export const PING_SOURCES = ['session', 'video', 'benchmark', 'mission'] as const
 
 export async function activity(env: Env, days: number): Promise<Day[]> {
   const since = addDays(todayIst(), -(days - 1))
-  const [sessions, reviewSessions, reviews, benchmarks] = await Promise.all([
+  const [sessions, pings, answers, reviewSessions, reviews, benchmarks] = await Promise.all([
     all<{ d: string; minutes: number; n: number }>(env,
       `SELECT ${istDay('started_at')} AS d, SUM(focused_minutes) AS minutes, SUM(ended_at IS NOT NULL) AS n
        FROM sessions WHERE ${istDay('started_at')} >= ? GROUP BY d`, since),
+    all<{ d: string; minutes: number }>(env, 'SELECT day AS d, SUM(minutes) AS minutes FROM activity_minutes WHERE day >= ? GROUP BY day', since),
+    all<{ d: string; n: number }>(env,
+      `SELECT ${istDay('created_at')} AS d, COUNT(*) AS n FROM attempts WHERE ${istDay('created_at')} >= ? GROUP BY d`, since),
     all<{ d: string; n: number }>(env,
       `SELECT ${istDay('ended_at')} AS d, COUNT(*) AS n FROM sessions
        WHERE kind = 'review' AND ended_at IS NOT NULL AND ${istDay('ended_at')} >= ? GROUP BY d`, since),
@@ -32,14 +40,16 @@ export async function activity(env: Env, days: number): Promise<Day[]> {
       `SELECT ${istDay('submitted_at')} AS d, COUNT(*) AS n FROM benchmark_runs WHERE submitted_at IS NOT NULL AND ${istDay('submitted_at')} >= ? GROUP BY d`, since),
   ])
   const by = <T extends { d: string }>(rows: T[]) => new Map(rows.map(r => [r.d, r]))
-  const s = by(sessions), rs = by(reviewSessions), rv = by(reviews), bm = by(benchmarks)
+  const s = by(sessions), pg = by(pings), an = by(answers), rs = by(reviewSessions), rv = by(reviews), bm = by(benchmarks)
   return Array.from({ length: days }, (_, i) => {
     const date = addDays(since, i)
-    const minutes = s.get(date)?.minutes ?? 0
+    // App-wide pings include Session-page time; days before pings existed only have session minutes. Never add both.
+    const minutes = Math.max(s.get(date)?.minutes ?? 0, pg.get(date)?.minutes ?? 0)
+    const answersN = an.get(date)?.n ?? 0
     const benchmarksN = bm.get(date)?.n ?? 0
     return {
-      date, minutes, sessions: s.get(date)?.n ?? 0, reviews: rv.get(date)?.n ?? 0, benchmarks: benchmarksN,
-      active: minutes >= MIN_MINUTES || (rs.get(date)?.n ?? 0) > 0 || benchmarksN > 0,
+      date, minutes, sessions: s.get(date)?.n ?? 0, answers: answersN, reviews: rv.get(date)?.n ?? 0, benchmarks: benchmarksN,
+      active: minutes >= MIN_MINUTES || answersN >= MIN_ANSWERS || (rs.get(date)?.n ?? 0) > 0 || benchmarksN > 0,
     }
   })
 }
@@ -77,6 +87,16 @@ export function streaks(days: Day[]) {
     active_days: days.filter(d => d.active).length,
   }
 }
+
+/** One focused minute on a learning screen; the client only pings while the page is visible and in use (or a video plays). */
+analytics.post('/activity/ping', async c => {
+  const { source } = await c.req.json<{ source: string }>().catch(() => ({ source: '' }))
+  if (!(PING_SOURCES as readonly string[]).includes(source)) throw new UserFacingError('Unknown activity source')
+  await run(c.env,
+    `INSERT INTO activity_minutes (day, source, minutes) VALUES (?, ?, 1)
+     ON CONFLICT(day, source) DO UPDATE SET minutes = minutes + 1`, todayIst(), source)
+  return c.json({ ok: true })
+})
 
 analytics.get('/activity', async c => {
   const days = Math.min(371, Math.max(28, Number(c.req.query('days') ?? 371)))

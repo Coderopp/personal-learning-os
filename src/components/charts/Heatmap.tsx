@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Tooltip, type Tip } from './ChartCard'
 
-export interface Day { date: string; minutes: number; sessions: number; reviews: number; benchmarks: number; active: boolean }
+export interface Day { date: string; minutes: number; sessions: number; answers: number; reviews: number; benchmarks: number; active: boolean }
 
 const CELL = 12
 const GAP = 3 // surface gap between cells
@@ -14,7 +14,8 @@ export function level(d: Day) {
   if (d.minutes >= 90) return 4
   if (d.minutes >= 45) return 3
   if (d.minutes >= 15) return 2
-  if (d.minutes > 0 || d.active || d.reviews > 0) return 1
+  // Any real learning shows, even below the learning-day bar (e.g. two quiz answers).
+  if (d.minutes > 0 || d.active || d.answers > 0 || d.reviews > 0 || d.benchmarks > 0) return 1
   return 0
 }
 
@@ -22,6 +23,7 @@ const fmtDay = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(
 
 export function describe(d: Day) {
   const parts = [`${d.minutes} focused min`]
+  if (d.answers) parts.push(`${d.answers} answer${d.answers > 1 ? 's' : ''}`)
   if (d.sessions) parts.push(`${d.sessions} session${d.sessions > 1 ? 's' : ''}`)
   if (d.reviews) parts.push(`${d.reviews} review${d.reviews > 1 ? 's' : ''}`)
   if (d.benchmarks) parts.push(`${d.benchmarks} benchmark${d.benchmarks > 1 ? 's' : ''}`)

@@ -15,7 +15,7 @@
     "validate": "node scripts/validate-knowledge.mjs",
     "deploy": "npm run build && wrangler deploy",
     "db:restore-state": "node scripts/import-state.mjs",
-    "test": "node tests/streaks.test.mjs"
+    "test": "node tests/streaks.test.mjs && node tests/activity.test.mjs"
   },
   "dependencies": {
     "hono": "^4.13.10",

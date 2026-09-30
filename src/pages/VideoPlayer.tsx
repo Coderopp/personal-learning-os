@@ -6,6 +6,7 @@ import { MomentList } from './Videos'
 import { Card, Chip, ErrorBanner, Spinner } from '../components/ui'
 import { AnswerBox } from '../components/AnswerBox'
 import { fmtTime } from '../lib/time'
+import { setMediaPlaying } from '../lib/activity'
 
 interface Note { id: string; t: number; text: string }
 interface AiNotes { summary: string; concepts: { t: number; name: string; note: string }[]; questions: Omit<Item, 'id'>[] }
@@ -61,14 +62,14 @@ export default function VideoPlayer() {
         videoId: video.id,
         // A ?t= deep link (search hit, Learn stage, tutor citation) wins over the saved position.
         playerVars: { start: Math.floor(deepLink ?? video.position ?? 0), rel: 0, modestbranding: 1, playsinline: 1 },
-        events: { onStateChange: (e: { data: number }) => { if (e.data !== PLAYING) saveProgress() } },
+        events: { onStateChange: (e: { data: number }) => { setMediaPlaying(e.data === PLAYING); if (e.data !== PLAYING) saveProgress() } },
       })
     })
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video?.id])
 
-  useEffect(() => () => { saveProgress(); player.current?.destroy(); player.current = null }, [id])
+  useEffect(() => () => { setMediaPlaying(false); saveProgress(); player.current?.destroy(); player.current = null }, [id])
 
   // Jumping between moments of the same video only changes ?t=, so seek the existing player.
   useEffect(() => {

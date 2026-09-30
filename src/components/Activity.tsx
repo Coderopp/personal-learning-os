@@ -23,10 +23,10 @@ export function StreakTiles({ streak }: { streak: Activity['streak'] }) {
 }
 
 export function ActivityCard({ activity, title = 'Learning activity' }: { activity: Activity; title?: string }) {
-  const active = activity.days.filter(d => d.active || d.minutes > 0).reverse()
+  const active = activity.days.filter(d => d.active || d.minutes > 0 || d.answers > 0).reverse()
   return (
     <ChartCard title={title}
-      subtitle="All missions · a learning day = 10+ focused minutes, a finished review, or a benchmark · one missed day per week keeps your streak"
+      subtitle="All missions · a learning day = 10+ focused minutes, 3+ graded answers, a finished review or a benchmark · one missed day per week keeps your streak"
       table={active.length ? (
         <table><thead><tr><th>Day</th><th>Activity</th><th>Counts</th></tr></thead>
           <tbody>{active.map(d => <tr key={d.date}><td>{short(d.date)}</td><td>{describe(d)}</td><td>{d.active ? 'yes' : 'no'}</td></tr>)}</tbody></table>

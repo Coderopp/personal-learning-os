@@ -1,6 +1,7 @@
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { lazy, Suspense, useEffect } from 'react'
 import { useApi } from './lib/api'
+import { useActivityPing } from './lib/activity'
 import type { Status } from './lib/types'
 import { Spinner } from './components/ui'
 import Dashboard from './pages/Dashboard'
@@ -33,6 +34,7 @@ export default function App() {
   const status = useApi<Status>('/status')
   const { pathname } = useLocation()
   useEffect(() => { window.scrollTo(0, 0) }, [pathname])
+  useActivityPing(pathname)
 
   const usage = status.data?.usage_today
   return (
