@@ -15,7 +15,7 @@
     "validate": "node scripts/validate-knowledge.mjs",
     "deploy": "npm run build && wrangler deploy",
     "db:restore-state": "node scripts/import-state.mjs",
-    "test": "node tests/streaks.test.mjs && node tests/activity.test.mjs && node tests/content.test.mjs"
+    "test": "npm run prompts && node tests/streaks.test.mjs && node tests/activity.test.mjs && node tests/content.test.mjs"
   },
   "dependencies": {
     "dompurify": "^3.4.16",
