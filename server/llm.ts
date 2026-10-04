@@ -28,6 +28,11 @@ const BUDGET: Record<PromptName, { tier: Tier; max: number }> = {
   'video-notes': { tier: 'fast', max: 2500 },
   // Merging synonyms into the existing vocabulary is judgment-heavy.
   'concept-tagger': { tier: 'large', max: 2500 },
+  composer: { tier: 'large', max: 2500 },
+  // Separate model bucket from the composer so building a path doesn't stall on the per-minute limit.
+  'project-designer': { tier: 'fast', max: 3000 },
+  'unit-questions': { tier: 'fast', max: 1500 },
+  'feed-matcher': { tier: 'fast', max: 2000 },
 }
 const estimateTokens = (text: string) => Math.ceil(text.length / 3.5)
 
@@ -213,6 +218,27 @@ export const SCHEMAS = {
       rubric: obj({ concept: str, implementation: str, reasoning: str, transfer: str }),
     })),
   }),
+  composePath: obj({
+    foundation: obj({ index: int, why: str, minutes: int, episode_hint: str }),
+    deepen: obj({ index: int, why: str, minutes: int, episode_hint: str }),
+    latest: { anyOf: [obj({ index: int, why: str, minutes: int, episode_hint: str }), { type: 'null' }] },
+    bench: arr(int),
+    reference: arr(int),
+    rationale: str,
+  }),
+  projectBrief: obj({
+    title: str, summary: str, goal: str, context: str,
+    requirements: arr(str),
+    milestones: arr(obj({ title: str, description: str, acceptance: str })),
+    deliverables: arr(str), acceptance_criteria: arr(str), stack: arr(str),
+    starter_resources: arr(obj({ title: str, url: str })),
+    stretch_goals: arr(str), estimated_hours: num,
+    difficulty: oneOf('beginner', 'intermediate', 'advanced'),
+    where_to_build: oneOf('browser', 'local', 'colab'),
+    notes: str,
+  }),
+  unitQuestions: obj({ questions: arr(qa) }),
+  feedMatches: obj({ posts: arr(obj({ index: int, matches: arr(obj({ competency_id: str, why: str })) })) }),
   conceptTags: obj({
     tags: arr(obj({ competency_id: str, concepts: arr(obj({ slug: str, name: str })) })),
   }),

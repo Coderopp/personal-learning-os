@@ -10,6 +10,9 @@ import { benchmarks } from './routes/benchmarks'
 import { analytics } from './routes/analytics'
 import { push } from './routes/push'
 import { graph } from './routes/graph'
+import { paths } from './routes/paths'
+import { projects } from './routes/projects'
+import { feeds } from './routes/feedsRoutes'
 
 export const app = new Hono<AppEnv>().basePath('/api')
 
@@ -27,6 +30,9 @@ app.route('/', benchmarks)
 app.route('/', analytics)
 app.route('/', push)
 app.route('/', graph)
+app.route('/', paths)
+app.route('/', projects)
+app.route('/', feeds)
 
 app.notFound(c => c.json({ error: 'Not found' }, 404))
 app.onError((err, c) => {

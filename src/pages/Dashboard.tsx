@@ -3,6 +3,7 @@ import { api, useAction, useApi } from '../lib/api'
 import type { Competency, Mission, Session } from '../lib/types'
 import { Card, Chip, Empty, ErrorBanner, Metric, Score, Spinner } from '../components/ui'
 import { ActivityCard, type Activity, StreakTiles } from '../components/Activity'
+import { NewForYou } from '../components/NewForYou'
 
 interface Dash {
   mission: Mission | null
@@ -163,6 +164,7 @@ export default function Dashboard() {
         </Card>
 
         <div className="stack">
+          <NewForYou />
           <Card title="Open errors" subtitle="What you repeatedly get wrong gets trained first." actions={<Link to="/errors" className="link">Error Lab</Link>}>
             {data.errors.length ? (
               <ul className="list">

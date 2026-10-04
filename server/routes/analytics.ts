@@ -21,7 +21,7 @@ export interface Day { date: string; minutes: number; sessions: number; answers:
  */
 const MIN_MINUTES = 10
 const MIN_ANSWERS = 3
-export const PING_SOURCES = ['session', 'video', 'benchmark', 'mission'] as const
+export const PING_SOURCES = ['session', 'video', 'benchmark', 'mission', 'reader', 'project'] as const
 
 export async function activity(env: Env, days: number): Promise<Day[]> {
   const since = addDays(todayIst(), -(days - 1))

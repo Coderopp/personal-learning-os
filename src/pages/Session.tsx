@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, useAction, useApi } from '../lib/api'
 import type { Grade, Item, Moment, Resource, Session } from '../lib/types'
 import { MomentList } from './Videos'
+import type { Path } from '../lib/types'
+import { unitHref } from '../components/PathView'
 import { Card, Chip, Empty, ErrorBanner, Spinner, verdictTone } from '../components/ui'
 import { AnswerBox } from '../components/AnswerBox'
 import { CodeRunner } from '../components/CodeRunner'
@@ -194,6 +196,9 @@ function LearnStage({ session, focus, patch, onNext }: { session: Session; focus
   const moments = (session.state.learn_videos ?? []) as Moment[]
   const action = useAction()
   const resources = useApi<Resource[]>(`/resources?competency=${encodeURIComponent(focus.id)}&status=accepted`)
+  const path = useApi<Path | null>(`/paths/${focus.id.split('/').map(encodeURIComponent).join('/')}`)
+  const core = path.data?.units.filter(u => ['foundation', 'deepen', 'practice', 'latest'].includes(u.role)) ?? []
+  const nextUnit = core.find(u => u.status !== 'done')
   const picked = (session.state.learn_resource_ids ?? []) as string[]
   const shown = (resources.data ?? []).sort((a, b) => Number(picked.includes(b.id)) - Number(picked.includes(a.id))).slice(0, 4)
 
@@ -211,6 +216,14 @@ function LearnStage({ session, focus, patch, onNext }: { session: Session; focus
         <ErrorBanner error={action.error} onRetry={explain} />
         {learn && <Md>{learn}</Md>}
       </Card>
+      {nextUnit && (
+        <Card title={`Continue your path: step ${core.indexOf(nextUnit) + 1} of ${core.length}`} subtitle={nextUnit.why}>
+          <div className="actions">
+            <Link className="button primary" to={unitHref(nextUnit, path.data?.project_id)}>{nextUnit.title}</Link>
+            <span className="muted small-text">{nextUnit.role}{nextUnit.minutes ? ` · ~${nextUnit.minutes} min` : ''} · this session stays open to resume</span>
+          </div>
+        </Card>
+      )}
       {moments.length > 0 && (
         <Card title="Watch the exact moment" subtitle="Where your saved videos explain this gap.">
           <MomentList moments={moments} />

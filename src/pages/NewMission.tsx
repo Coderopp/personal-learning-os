@@ -39,7 +39,7 @@ export default function NewMission() {
       const names = Object.fromEntries(mission.competencies.map(c => [c.id, c.name]))
       setSteps([
         { label: `Planned ${mission.competencies.length} competencies${mission.milestones.length ? ` and ${mission.milestones.length} milestones` : ''}`, state: 'done' },
-        ...plan.search_plan.map(q => ({ label: `Searching & curating: ${names[q.competency_id] ?? q.competency_id}`, state: 'pending' as const })),
+        ...plan.search_plan.map(q => ({ label: `Building path: ${names[q.competency_id] ?? q.competency_id}`, state: 'pending' as const })),
       ])
 
       // One competency at a time: Groq's free tier allows ~8k tokens/minute per model.
@@ -48,8 +48,8 @@ export default function NewMission() {
         update(i + 1, { state: 'running' })
         for (let attempt = 0; ; attempt++) {
           try {
-            const r = await api<{ added: number; searched: number }>(`/missions/${plan.mission_id}/gather`, { body: q })
-            update(i + 1, { state: 'done', detail: `${r.added} picked from ${r.searched} results` })
+            const p = await api<{ units: { role: string }[] }>('/paths/build', { body: { competency_id: q.competency_id } })
+            update(i + 1, { state: 'done', detail: `${p.units.filter(u => ['foundation', 'deepen', 'practice', 'latest'].includes(u.role)).length} steps` })
             break
           } catch (e) {
             const busy = e instanceof ApiError && e.status === 429
@@ -78,7 +78,7 @@ export default function NewMission() {
         <div>
           <span className="kicker">New mission</span>
           <h1>What do you want to get excellent at?</h1>
-          <p className="muted">The agent plans a skill tree, runs real searches for each competency, and proposes resources. Nothing enters your library until you approve it.</p>
+          <p className="muted">The agent plans a skill tree, then builds a 4-step path per competency from lectures, articles, newsletters, papers and repos: steps you do inside the app, ending in a small project.</p>
         </div>
       </header>
 

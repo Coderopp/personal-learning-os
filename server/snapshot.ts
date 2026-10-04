@@ -19,6 +19,12 @@ const TABLES: Record<string, string> = {
   video_notes: 'SELECT * FROM video_notes',
   benchmark_runs: 'SELECT * FROM benchmark_runs',
   llm_usage: 'SELECT * FROM llm_usage',
+  paths: 'SELECT * FROM paths',
+  units: 'SELECT * FROM units',
+  projects: 'SELECT * FROM projects',
+  feeds: 'SELECT * FROM feeds',
+  feed_items: 'SELECT * FROM feed_items',
+  activity_minutes: 'SELECT * FROM activity_minutes',
 }
 
 export interface SnapshotResult { committed: boolean; sha?: string; reason?: string; rows: number }

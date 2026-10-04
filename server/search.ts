@@ -5,7 +5,7 @@ export interface Hit {
   title: string
   url: string
   snippet: string
-  source: 'tavily' | 'youtube' | 'arxiv' | 'github'
+  source: 'tavily' | 'youtube' | 'arxiv' | 'github' | 'playlist'
   author?: string
   duration_s?: number
   views?: number
@@ -45,15 +45,33 @@ export async function gather(env: Env, webQueries: string[], youtubeQuery: strin
   return hits
 }
 
-async function tavily(env: Env, query: string): Promise<Hit[]> {
+export async function tavily(env: Env, query: string, opts: { max?: number; domains?: string[]; exclude?: string[]; recent?: boolean } = {}): Promise<Hit[]> {
+  if (!env.TAVILY_API_KEY) return []
   const res = await fetch('https://api.tavily.com/search', {
     method: 'POST',
     headers: { authorization: `Bearer ${env.TAVILY_API_KEY}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ query, max_results: 6, search_depth: 'basic' }),
+    body: JSON.stringify({
+      query, max_results: opts.max ?? 6, search_depth: 'basic',
+      ...(opts.domains && { include_domains: opts.domains }),
+      ...(opts.exclude && { exclude_domains: opts.exclude }),
+      ...(opts.recent && { time_range: 'year' }),
+    }),
+    signal: AbortSignal.timeout(20_000),
   })
   if (!res.ok) throw new Error(`tavily ${res.status}`)
-  const data = await res.json<{ results: { title: string; url: string; content: string }[] }>()
-  return data.results.map(r => ({ title: r.title, url: r.url, snippet: r.content.slice(0, 400), source: 'tavily' as const }))
+  const data = await res.json<{ results: { title: string; url: string; content: string; published_date?: string }[] }>()
+  return data.results.map(r => ({ title: r.title, url: r.url, snippet: r.content.slice(0, 400), published: r.published_date?.slice(0, 10), source: 'tavily' as const }))
+}
+
+/** Newsletter platforms (incl. well-known custom domains) for the "Latest" step. */
+export const NEWSLETTER_DOMAINS = ['substack.com', 'medium.com', 'beehiiv.com', 'lennysnewsletter.com', 'latent.space', 'newsletter.pragmaticengineer.com', 'thesignal.club']
+/** Recent posts from newsletters and personal blogs, excluding video and social sites. */
+export async function latestPosts(env: Env, query: string) {
+  const [newsletters, blogs] = await Promise.allSettled([
+    tavily(env, query, { max: 6, domains: NEWSLETTER_DOMAINS, recent: true }),
+    tavily(env, `${query} blog post`, { max: 5, recent: true, exclude: ['youtube.com', 'reddit.com', 'twitter.com', 'x.com', 'linkedin.com', 'facebook.com', 'quora.com', 'udemy.com', 'coursera.org'] }),
+  ])
+  return [newsletters, blogs].flatMap(r => (r.status === 'fulfilled' ? r.value : []))
 }
 
 /** Official Data API when a key is set; otherwise YouTube's own (keyless) search endpoint. */
@@ -142,7 +160,7 @@ function isoDuration(s?: string) {
   return m ? Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0) : undefined
 }
 
-async function arxiv(query: string): Promise<Hit[]> {
+export async function arxiv(query: string): Promise<Hit[]> {
   const q = query.split(/\s+/).filter(w => w.length > 2).slice(0, 6).map(w => `all:${w.replace(/[^\w-]/g, '')}`).join('+AND+')
   const res = await fetch(`https://export.arxiv.org/api/query?search_query=${q}&max_results=3&sortBy=relevance`)
   if (!res.ok) throw new Error(`arxiv ${res.status}`)
@@ -156,7 +174,7 @@ async function arxiv(query: string): Promise<Hit[]> {
   }))
 }
 
-async function github(env: Env, query: string): Promise<Hit[]> {
+export async function github(env: Env, query: string): Promise<Hit[]> {
   const q = encodeURIComponent(query.split(/\s+/).slice(0, 5).join(' '))
   const res = await fetch(`https://api.github.com/search/repositories?q=${q}&sort=stars&per_page=5`, {
     headers: {
