@@ -88,3 +88,87 @@ export function transcriptToText(lines: Line[], from = 0, to = Infinity, maxChar
   const keepEvery = Math.ceil(total / maxChars)
   return `${all.filter((_, i) => i % keepEvery === 0).join('\n')}\n[long transcript: every ${keepEvery}th line shown]`
 }
+
+// ---------- Series / playlists (keyless InnerTube) ----------
+
+const INNERTUBE_CTX = { client: { clientName: 'WEB', clientVersion: '2.20250101.00.00', hl: 'en' } }
+
+async function innertube(path: string, body: Record<string, unknown>) {
+  const res = await fetch(`https://www.youtube.com/youtubei/v1/${path}?prettyPrint=false`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ...body, context: INNERTUBE_CTX }), signal: AbortSignal.timeout(10_000),
+  })
+  if (!res.ok) throw new Error(`innertube ${path} ${res.status}`)
+  return res.json<unknown>()
+}
+
+function collect<T>(o: unknown, key: string, out: T[] = []): T[] {
+  if (Array.isArray(o)) o.forEach(v => collect(v, key, out))
+  else if (o && typeof o === 'object') {
+    const rec = o as Record<string, unknown>
+    if (key in rec) out.push(rec[key] as T)
+    Object.values(rec).forEach(v => collect(v, key, out))
+  }
+  return out
+}
+
+interface Lockup { contentId: string; contentType: string; metadata?: { lockupMetadataViewModel?: { title?: { content?: string } } } }
+const lockupTitle = (l: Lockup) => l.metadata?.lockupMetadataViewModel?.title?.content ?? ''
+
+export interface Playlist { id: string; title: string; episodes: { id: string; title: string }[] }
+
+export async function searchPlaylists(query: string, max = 3): Promise<{ id: string; title: string }[]> {
+  const res = await innertube('search', { query, params: 'EgIQAw%3D%3D' }) // playlists only
+  return collect<Lockup>(res, 'lockupViewModel')
+    .filter(l => l.contentType === 'LOCKUP_CONTENT_TYPE_PLAYLIST')
+    .slice(0, max).map(l => ({ id: l.contentId, title: lockupTitle(l) }))
+}
+
+export async function playlistEpisodes(id: string): Promise<{ id: string; title: string }[]> {
+  const res = await innertube('browse', { browseId: `VL${id}` })
+  return collect<Lockup>(res, 'lockupViewModel')
+    .filter(l => l.contentType === 'LOCKUP_CONTENT_TYPE_VIDEO')
+    .map(l => ({ id: l.contentId, title: lockupTitle(l) }))
+}
+
+const SERIES = /\b(lecture|lec|chapter|part|episode|ep|lesson|session|module|week|day)\s*\.?\s*#?\d+|#\d+\b|\b\d+\s*[:.|-]\s/i
+
+/** Is this title an episode of a series (e.g. "Lecture 5 | MIT 6.832 …")? */
+export const looksLikeEpisode = (title: string) => SERIES.test(title)
+
+/** For an episode, find the playlist that contains it, so the app can show the course around it. */
+export async function seriesFor(videoId: string, title: string, channel?: string | null): Promise<Playlist | null> {
+  const stem = title.replace(SERIES, ' ').replace(/[|:–—-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
+  const lists = await searchPlaylists(`${channel ?? ''} ${stem}`.trim(), 3)
+  for (const pl of lists) {
+    const episodes = await playlistEpisodes(pl.id).catch(() => [])
+    if (episodes.some(e => e.id === videoId)) return { ...pl, episodes: episodes.slice(0, 80) }
+  }
+  return null
+}
+
+/**
+ * Pick the stretch of a long video that best covers the given terms: score ~60 s windows by term hits,
+ * then grow around the best window to roughly `targetMin` minutes. Returns null when nothing matches.
+ */
+export function pickSegment(lines: Line[], terms: string[], targetMin = 20): { start: number; end: number } | null {
+  if (!lines.length) return null
+  const words = [...new Set(terms.flatMap(t => t.toLowerCase().match(/[a-z0-9][a-z0-9+#.-]{2,}/g) ?? []))]
+    .filter(w => !['the', 'and', 'for', 'with', 'from', 'that', 'this', 'into', 'how', 'what', 'why'].includes(w))
+  if (!words.length) return null
+  const end = lines[lines.length - 1].t
+  const buckets = Math.ceil(end / 60) + 1
+  const score = new Array<number>(buckets).fill(0)
+  for (const l of lines) {
+    const text = l.text.toLowerCase()
+    for (const w of words) if (text.includes(w)) score[Math.floor(l.t / 60)] += 1
+  }
+  const span = Math.max(3, Math.min(targetMin, buckets))
+  let best = -1, bestAt = 0
+  for (let i = 0; i + span <= buckets; i++) {
+    const s = score.slice(i, i + span).reduce((a, b) => a + b, 0)
+    if (s > best) { best = s; bestAt = i }
+  }
+  if (best <= 0) return null
+  return { start: bestAt * 60, end: Math.min(end, (bestAt + span) * 60) }
+}

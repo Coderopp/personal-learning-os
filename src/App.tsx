@@ -18,6 +18,9 @@ const Errors = lazy(() => import('./pages/Errors'))
 const Analytics = lazy(() => import('./pages/Analytics'))
 const StartReview = lazy(() => import('./pages/StartReview'))
 const Graph = lazy(() => import('./pages/Graph'))
+const UnitPage = lazy(() => import('./pages/Unit'))
+const ProjectPage = lazy(() => import('./pages/Project'))
+const Sources = lazy(() => import('./pages/Sources'))
 const Settings = lazy(() => import('./pages/Settings'))
 
 const NAV = [
@@ -25,6 +28,7 @@ const NAV = [
   { to: '/missions', label: 'Missions', icon: '◈' },
   { to: '/library', label: 'Library', icon: '▤' },
   { to: '/videos', label: 'Videos', icon: '▶' },
+  { to: '/sources', label: 'Sources', icon: '✉' },
   { to: '/errors', label: 'Error Lab', icon: '✕' },
   { to: '/analytics', label: 'Analytics', icon: '▦' },
   { to: '/settings', label: 'System', icon: '⚙' },
@@ -76,6 +80,9 @@ export default function App() {
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/start-review" element={<StartReview />} />
           <Route path="/connections" element={<Graph />} />
+          <Route path="/unit/:id" element={<UnitPage />} />
+          <Route path="/projects/:id" element={<ProjectPage />} />
+          <Route path="/sources" element={<Sources />} />
           <Route path="/settings" element={<Settings status={status.data} />} />
           <Route path="*" element={<div className="page"><h1>Not found</h1></div>} />
         </Routes>

@@ -145,3 +145,71 @@ export interface BenchmarkStatus {
 }
 
 export interface Moment { video_id: string; title: string; channel: string | null; t: number; snippet: string }
+
+export type UnitRole = 'foundation' | 'deepen' | 'practice' | 'latest' | 'bench' | 'reference'
+export type UnitKind = 'read' | 'watch' | 'pdf' | 'code' | 'project' | 'link'
+
+export interface Unit {
+  id: string
+  path_id: string
+  mission_id: string
+  competency_id: string
+  role: UnitRole
+  position: number
+  kind: UnitKind
+  title: string
+  url: string
+  source: string
+  author: string | null
+  publication: string | null
+  published: string | null
+  minutes: number | null
+  why: string
+  data: Record<string, unknown> & {
+    video_id?: string | null
+    segment?: { start: number; end: number } | null
+    playlist?: { id: string; title: string; episodes: { id: string; title: string }[] }
+    paid?: boolean
+    pdf_url?: string
+    repo?: string
+    info?: { repo: string; description: string | null; stars: number; branch: string; readme: string | null; notebooks: { path: string; colab: string }[]; code_files: string[] } | null
+  }
+  status: 'todo' | 'doing' | 'done'
+  progress: number
+  questions: (Item & { id: string })[] | null
+}
+
+export interface Path {
+  id: string
+  mission_id: string
+  competency_id: string
+  status: 'proposed' | 'accepted'
+  rationale: string | null
+  units: Unit[]
+  project_id: string | null
+}
+
+export interface ProjectBrief {
+  title: string
+  summary: string
+  goal: string
+  context: string
+  requirements: string[]
+  milestones: { title: string; description: string; acceptance: string }[]
+  deliverables: string[]
+  acceptance_criteria: string[]
+  stack: string[]
+  starter_resources: { title: string; url: string }[]
+  stretch_goals: string[]
+  estimated_hours: number
+  difficulty: 'beginner' | 'intermediate' | 'advanced'
+  where_to_build: 'browser' | 'local' | 'colab'
+  notes: string
+}
+
+export interface Feed { id: string; feed_url: string; site_url: string; title: string; platform: string; items: number; unread: number; last_checked_at: string | null; last_error: string | null }
+export interface FeedPost {
+  id: string; feed_id: string; feed_title: string; platform: string; url: string; title: string; author: string | null
+  published: string | null; summary: string; paid: number; status: string
+  matches: { competency_id: string; name: string; mission_id: string; why?: string }[]
+}

@@ -13,8 +13,8 @@ const q = v => (v === null || v === undefined ? 'NULL' : typeof v === 'number' ?
 
 // Parents before children so a fresh database stays consistent.
 const ORDER = ['missions', 'competencies', 'milestones', 'resources', 'primers', 'questions', 'sessions', 'attempts', 'errors',
-  'reviews', 'review_log', 'reflections', 'videos', 'video_notes', 'benchmark_runs', 'llm_usage']
-const PK = { primers: 'competency_id', llm_usage: 'day' }
+  'reviews', 'review_log', 'reflections', 'videos', 'video_notes', 'benchmark_runs', 'llm_usage', 'paths', 'units', 'projects', 'feeds', 'feed_items', 'activity_minutes']
+const PK = { primers: 'competency_id', llm_usage: 'day', activity_minutes: 'day, source' }
 const available = new Set(readdirSync(join(dir, 'state')).map(f => f.replace(/\.json$/, '')))
 const sql = []
 for (const table of ORDER.filter(t => available.has(t))) {

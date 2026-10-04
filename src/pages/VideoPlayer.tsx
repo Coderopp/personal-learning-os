@@ -42,6 +42,7 @@ export default function VideoPlayer() {
   const { id = '' } = useParams()
   const [params] = useSearchParams()
   const deepLink = params.get('t') != null ? Number(params.get('t')) : null
+  const unitId = params.get('unit')
   const { data: video, error, loading, reload, setData } = useApi<Video>(`/videos/${id}`)
   const missions = useApi<Mission[]>('/missions')
   const host = useRef<HTMLDivElement>(null)
@@ -144,6 +145,7 @@ export default function VideoPlayer() {
         </label>
       </header>
 
+      {unitId && <UnitBanner unitId={unitId} seek={seek} />}
       <div className="video-layout">
         <div className="video-main">
           <div className="player-frame"><div ref={host} /></div>
@@ -300,5 +302,56 @@ function FindInVideo({ videoId, searchable }: { videoId: string; searchable: boo
       <ErrorBanner error={action.error} />
       {hits && (hits.length ? <MomentList moments={hits} showTitle={false} /> : <p className="muted small-text">Not mentioned in the transcript.</p>)}
     </div>
+  )
+}
+
+/** When opened from a learning path: the step's segment, its course context, and completion. */
+function UnitBanner({ unitId, seek }: { unitId: string; seek: (t: number) => void }) {
+  const { data: unit, reload } = useApi<import('../lib/types').Unit & { competency: { name: string } | null }>(`/units/${unitId}`)
+  const action = useAction()
+  const [quiz, setQuiz] = useState<{ items: Item[]; results: Record<string, Grade> } | null>(null)
+  if (!unit) return null
+  const seg = unit.data.segment
+  const pl = unit.data.playlist
+  const idx = pl && unit.data.video_id ? pl.episodes.findIndex(e => e.id === unit.data.video_id) : -1
+  const getQuiz = () => action.run(async () => {
+    const qs = await api<(Item & { id: string })[]>(`/units/${unitId}/questions`, { body: {} })
+    setQuiz({ items: qs, results: {} })
+  })
+  const answered = quiz ? quiz.items.filter(q => quiz.results[q.id]).length : 0
+  return (
+    <Card className="unit-banner" title={<><Link to={`/missions/${unit.mission_id}?c=${encodeURIComponent(unit.competency_id)}`}>{unit.competency?.name ?? 'Path'}</Link> · {unit.role} step</>}
+      subtitle={unit.why}
+      actions={unit.status === 'done' ? <Chip tone="good">done</Chip> : (
+        <button className="ghost small" disabled={action.busy} onClick={() => action.run(async () => { await api(`/units/${unitId}/complete`, { body: {} }); reload() })}>Mark done</button>
+      )}>
+      {seg && (
+        <p className="small-text">Watch <button className="stamp" onClick={() => seek(seg.start)}>{fmtTime(seg.start)}</button> → <b>{fmtTime(seg.end)}</b>: the part that covers this skill.</p>
+      )}
+      {pl && (
+        <details className="course-strip">
+          <summary className="muted small-text">{idx >= 0 ? `Episode ${idx + 1} of ${pl.episodes.length}` : `${pl.episodes.length} episodes`} · {pl.title}{idx > 0 ? ': earlier episodes build up to this one' : ''}</summary>
+          <ol>{pl.episodes.map((e, i) => (
+            <li key={e.id} className={i === idx ? 'current' : ''}><Link to={`/videos/${e.id}`}>{e.title}</Link></li>
+          ))}</ol>
+        </details>
+      )}
+      {!quiz ? (
+        <div className="actions"><button className="secondary small" disabled={action.busy} onClick={getQuiz}>{action.busy ? 'Writing questions…' : 'I watched it: quiz me'}</button></div>
+      ) : (
+        <div className="stack">
+          {quiz.items.map((q, i) => (
+            <AnswerBox key={q.id} item={q} index={i} missionId={unit.mission_id} stage="unit" result={quiz.results[q.id]}
+              onGraded={g => {
+                const results = { ...quiz.results, [q.id]: g }
+                setQuiz({ ...quiz, results })
+                if (quiz.items.every(x => results[x.id])) api(`/units/${unitId}/complete`, { body: {} }).then(reload).catch(() => {})
+              }} />
+          ))}
+          {answered === quiz.items.length && <p className="banner info">Step complete ✓</p>}
+        </div>
+      )}
+      <ErrorBanner error={action.error} />
+    </Card>
   )
 }

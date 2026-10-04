@@ -7,6 +7,7 @@ import { Md } from '../components/Md'
 import { ResourceCard } from '../components/ResourceCard'
 import { AskTutor } from '../components/AskTutor'
 import { VideoCard } from '../components/VideoCard'
+import { PathView } from '../components/PathView'
 import { useStartSession } from './Dashboard'
 
 export default function MissionPage() {
@@ -114,6 +115,7 @@ function Workspace({ id }: { id: string }) {
           )}
           {m.status === 'draft' && <button className="primary" disabled={action.busy} onClick={() => patch({ status: 'active' })}>Activate mission</button>}
           {m.role !== 'primary' && m.status === 'active' && <button className="secondary" disabled={action.busy} onClick={() => patch({ role: 'primary' })}>Make primary</button>}
+          <BuildAllPaths missionId={m.id} competencies={m.competencies} />
           <button className="ghost" disabled={action.busy} onClick={remove}>{m.status === 'draft' ? 'Delete draft' : 'Archive'}</button>
         </div>
       </header>
@@ -161,6 +163,38 @@ function Workspace({ id }: { id: string }) {
         {m.mode === 'project' && <Milestones mission={m} onChange={reload} />}
       </div>
     </div>
+  )
+}
+
+/** Build a path for every competency that doesn't have one yet (one at a time: Groq's free tier is per-minute). */
+function BuildAllPaths({ missionId, competencies }: { missionId: string; competencies: Competency[] }) {
+  const paths = useApi<{ competency_id: string }[]>(`/missions/${enc(missionId)}/paths`)
+  const [state, setState] = useState<{ done: number; total: number; current: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const missing = competencies.filter(c => !paths.data?.some(p => p.competency_id === c.id))
+  if (!paths.data || !missing.length) return null
+  const run = async () => {
+    setError(null)
+    for (const [i, c] of missing.entries()) {
+      setState({ done: i, total: missing.length, current: c.name })
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try { await api('/paths/build', { body: { competency_id: c.id } }); break } catch (e) {
+          if (attempt === 0 && (e as { status?: number }).status === 429) { await new Promise(r => setTimeout(r, 20_000)); continue }
+          setError(`${c.name}: ${(e as Error).message}`)
+          break
+        }
+      }
+    }
+    setState(null)
+    paths.reload()
+  }
+  return (
+    <>
+      <button className="secondary" disabled={Boolean(state)} onClick={run} title={error ?? ''}>
+        {state ? `Building paths ${state.done + 1}/${state.total}: ${state.current}…` : `Build ${missing.length} learning path${missing.length > 1 ? 's' : ''}`}
+      </button>
+      {error && <span className="bad-text small-text">{error}</span>}
+    </>
   )
 }
 
@@ -227,12 +261,12 @@ function AddCompetency({ missionId, competencies, onAdded }: { missionId: string
   )
 }
 
-type PanelTab = 'primer' | 'resources' | 'videos' | 'ask' | 'edit'
+type PanelTab = 'path' | 'primer' | 'resources' | 'videos' | 'ask' | 'edit'
 
 function CompetencyPanel({ c, all, onChange, onClose, bench, active }: {
   c: Competency; all: Competency[]; onChange: () => void; onClose: () => void; bench?: BenchmarkStatus; active: boolean
 }) {
-  const [tab, setTab] = useState<PanelTab>('primer')
+  const [tab, setTab] = useState<PanelTab>('path')
   const navigate = useNavigate()
   const benchAction = useAction()
   const startBenchmark = () => benchAction.run(async () => {
@@ -263,9 +297,10 @@ function CompetencyPanel({ c, all, onChange, onClose, bench, active }: {
       <ErrorBanner error={benchAction.error} />
       <AlsoIn id={c.id} onTestOut={active ? startBenchmark : undefined} />
       <div className="tabs">
-        {(['primer', 'resources', 'videos', 'ask', 'edit'] as PanelTab[]).map(t =>
+        {(['path', 'primer', 'resources', 'videos', 'ask', 'edit'] as PanelTab[]).map(t =>
           <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t[0].toUpperCase() + t.slice(1)}</button>)}
       </div>
+      {tab === 'path' && <PathView competencyId={c.id} active={active} />}
       {tab === 'primer' && <Primer id={c.id} />}
       {tab === 'resources' && <CompetencyResources c={c} />}
       {tab === 'videos' && <CompetencyVideos c={c} />}

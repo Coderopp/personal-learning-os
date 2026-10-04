@@ -9,6 +9,8 @@ The repo is the **memory**, Groq is the **execution layer**, the benchmark is th
 ## What it does
 
 - **Missions.** One *Primary* mission (Mastery mode: graded loop, error tracking, spaced review) plus any number of *Exploration* missions (Project mode: build-first milestones and a coach).
+- **Learning paths.** Per competency, the agent builds 4 steps you do *inside* the app: **Foundation** (a lecture segment, shown in its course), **Deepen** (an article or paper in the in-app reader or PDF viewer), **Practice** (a small project with a structured, editable brief) and **Latest** (a recent Substack, Medium, beehiiv or blog post). Every step ends with check questions that feed reviews and the Error Lab. See [docs/PRD-learning-paths.md](docs/PRD-learning-paths.md).
+- **Sources.** Follow writers on Substack, Medium, beehiiv or any blog; new posts are matched to your skills daily and can join a path as its Latest step.
 - **Knowledge agent.** Type a skill; it plans a skill tree and excellence criteria, runs real searches (Tavily, YouTube, arXiv, GitHub), and proposes resources that each state *why they exist*. Nothing enters the library until you approve it; approval commits it to `knowledge/`.
 - **Session Runner.** Recall → Learn → Practice → Build → Diagnose → Reflect. Grading, calibrated difficulty, targeted explanations. Resumable across devices.
 - **Error Lab.** Every real misunderstanding is recorded with its root cause; recurring ones are injected into future sessions until resolved (3 correct answers across ≥ 7 days).

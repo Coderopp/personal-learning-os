@@ -6,10 +6,12 @@ let mediaPlaying = false
 export const setMediaPlaying = (playing: boolean) => { mediaPlaying = playing }
 
 /** Which learning screen a path is, if any. Browsing Today, Analytics or settings isn't learning time. */
-export function learningSource(path: string): 'session' | 'video' | 'benchmark' | 'mission' | null {
+export function learningSource(path: string): 'session' | 'video' | 'benchmark' | 'mission' | 'reader' | 'project' | null {
   if (path.startsWith('/session/')) return 'session'
   if (/^\/videos\/[^/]+/.test(path)) return 'video'
   if (path.startsWith('/benchmark/')) return 'benchmark'
+  if (path.startsWith('/unit/')) return 'reader'
+  if (path.startsWith('/projects/')) return 'project'
   if (/^\/missions\/(?!new)[^/]+/.test(path)) return 'mission'
   return null
 }
